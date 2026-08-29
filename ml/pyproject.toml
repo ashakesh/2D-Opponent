@@ -1,0 +1,17 @@
+[project]
+name = "fightml"
+version = "0.1.0"
+description = "ML research package for fighting simulators (backend-agnostic)"
+requires-python = ">=3.10"
+dependencies = []
+
+[project.optional-dependencies]
+dev = ["pytest>=7.0"]
+
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["fightml*"]
