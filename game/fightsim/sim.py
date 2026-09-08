@@ -42,25 +42,28 @@ def step_state(state: GameState, p1_in: RawInput, p2_in: RawInput) -> tuple[Game
 
     if s.hitstop > 0:
         s.hitstop -= 1
-        store_prev_buttons(s.p1, p1_in)
-        store_prev_buttons(s.p2, p2_in)
+        # Keep direction buffer; do not consume button edges so cancels buffer through hitstop.
         s.last_events = events
         return s, events
 
-    advance_stun(s.p1)
-    advance_stun(s.p2)
+    advance_stun(s.p1, events, 1)
+    advance_stun(s.p2, events, 2)
 
     try_normals_and_move(s.p1, p1_in, events, 1)
     try_normals_and_move(s.p2, p2_in, events, 2)
 
     apply_gravity_and_integrate(s.p1)
     apply_gravity_and_integrate(s.p2)
-    land_if_needed(s.p1)
-    land_if_needed(s.p2)
+    for pid, f in ((1, s.p1), (2, s.p2)):
+        kind = land_if_needed(f)
+        if kind == "bounce":
+            events.append(CombatEvent(kind="bounce", defender=pid, data={"surface": "floor"}))
     update_body_size(s.p1)
     update_body_size(s.p2)
-    clamp_to_stage(s.p1)
-    clamp_to_stage(s.p2)
+    for pid, f in ((1, s.p1), (2, s.p2)):
+        kind = clamp_to_stage(f)
+        if kind == "wall":
+            events.append(CombatEvent(kind="bounce", defender=pid, data={"surface": "wall"}))
     resolve_push(s)
 
     b1, c1 = block_flags(s.p1, p1_in)
@@ -72,8 +75,12 @@ def step_state(state: GameState, p1_in: RawInput, p2_in: RawInput) -> tuple[Game
         if proj is not None:
             s.projectiles.append(proj)
 
-    land_if_needed(s.p1)
-    land_if_needed(s.p2)
+    for pid, f in ((1, s.p1), (2, s.p2)):
+        kind = land_if_needed(f)
+        if kind == "bounce":
+            events.append(CombatEvent(kind="bounce", defender=pid, data={"surface": "floor"}))
+    update_body_size(s.p1)
+    update_body_size(s.p2)
     update_facing(s.p1, s.p2)
     update_facing(s.p2, s.p1)
 

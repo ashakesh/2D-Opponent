@@ -162,21 +162,28 @@ def motion_623(buf: list[int]) -> bool:
 
 
 def tap_forward(buf: list[int]) -> bool:
-    """66 dash: forward tap, then forward again (rising into 6)."""
-    if not buf or buf[-1] != 6:
-        return False
-    if len(buf) >= 2 and buf[-2] == 6:
-        return False
-    window = buf[-DASH_WINDOW:-1]
-    return 6 in window
+    """66 dash: forward, then not-forward, then forward again inside DASH_WINDOW."""
+    return _strict_double_tap(buf, 6)
 
 
 def tap_back(buf: list[int]) -> bool:
-    if not buf or buf[-1] != 4:
+    return _strict_double_tap(buf, 4)
+
+
+def _strict_double_tap(buf: list[int], dir_n: int) -> bool:
+    if not buf or buf[-1] != dir_n:
         return False
-    if len(buf) >= 2 and buf[-2] == 4:
+    if len(buf) >= 2 and buf[-2] == dir_n:
         return False
-    return 4 in buf[-DASH_WINDOW:-1]
+    recent = buf[-DASH_WINDOW:]
+    prev = None
+    for i in range(len(recent) - 2, -1, -1):
+        if recent[i] == dir_n:
+            prev = i
+            break
+    if prev is None:
+        return False
+    return any(recent[i] != dir_n for i in range(prev + 1, len(recent) - 1)) or recent[-2] != dir_n
 
 
 def holding_back(inp: RawInput, facing: int) -> bool:

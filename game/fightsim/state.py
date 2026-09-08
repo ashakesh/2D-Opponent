@@ -136,6 +136,8 @@ class FighterState:
     push_h: int
     combo_received: int
     knockdown_pending: bool
+    bounce_count: int
+    landing_lock: int
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -163,6 +165,8 @@ class FighterState:
             "push_h": self.push_h,
             "combo_received": self.combo_received,
             "knockdown_pending": self.knockdown_pending,
+            "bounce_count": self.bounce_count,
+            "landing_lock": self.landing_lock,
         }
 
     @staticmethod
@@ -195,6 +199,8 @@ class FighterState:
             push_h=int(d["push_h"]),
             combo_received=int(d["combo_received"]),
             knockdown_pending=bool(d["knockdown_pending"]),
+            bounce_count=int(d.get("bounce_count", 0)),
+            landing_lock=int(d.get("landing_lock", 0)),
         )
 
 
@@ -277,6 +283,8 @@ def _blank_fighter(x: int, facing: int) -> FighterState:
         push_h=STAND_PUSH_H,
         combo_received=0,
         knockdown_pending=False,
+        bounce_count=0,
+        landing_lock=0,
     )
 
 

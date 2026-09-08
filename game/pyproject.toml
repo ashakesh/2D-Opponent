@@ -1,6 +1,6 @@
 [project]
 name = "fightsim"
-version = "0.1.0"
+version = "0.2.0"
 description = "Deterministic two-player fighting simulator for ML research"
 requires-python = ">=3.10"
 dependencies = []

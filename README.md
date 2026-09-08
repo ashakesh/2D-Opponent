@@ -39,6 +39,8 @@ Research (later milestones):
 pip install -e "./game" -e "./ml"
 ```
 
+ML research owners: start at [`ml/HANDOFF.md`](ml/HANDOFF.md). Do not add training code to `game/`.
+
 ## Tests
 
 ```bash

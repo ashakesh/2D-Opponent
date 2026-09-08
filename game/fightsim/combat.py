@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from fightsim.collision import aabb_overlap, hitbox_from_local, hurtbox, projectile_box
 from fightsim.config import (
+    AIR_BLOWBACK_X,
+    AIR_BLOWBACK_Y,
     METER_GAIN_BLOCK,
     METER_GAIN_HIT,
     METER_MAX,
@@ -112,12 +114,23 @@ def apply_hit(
         attacker.can_special_cancel = True
 
     face = attacker.facing
+    was_air = airborne(defender)
+
     if blocked and not is_throw:
         defender.fsm = FSM.BLOCKSTUN
         defender.blockstun = bs
         defender.hitstun = 0
         defender.move_id = ""
         defender.can_special_cancel = False
+        if defender.combo_received > 0:
+            events.append(
+                CombatEvent(
+                    kind="combo_ended",
+                    attacker=attacker_id,
+                    defender=defender_id,
+                    data={"length": defender.combo_received},
+                )
+            )
         defender.combo_received = 0
         defender.vx = kbx * face // 2 if kbx else 2 * SUBPIXEL * face
         defender.vy = 0
@@ -141,12 +154,20 @@ def apply_hit(
             defender.combo_received += 1
         else:
             defender.combo_received = 1
+            defender.bounce_count = 0
         defender.fsm = FSM.HITSTUN
         defender.hitstun = hs if not (is_throw or move.knockdown) else max(hs, 12)
         defender.blockstun = 0
         defender.move_id = ""
         defender.can_special_cancel = False
-        defender.knockdown_pending = bool(is_throw or move.knockdown)
+        defender.landing_lock = 0
+        defender.knockdown_pending = bool(
+            is_throw or move.knockdown or was_air or move.move_id == "jump_light"
+        )
+        if was_air or move.move_id == "jump_light":
+            kbx = max(kbx, AIR_BLOWBACK_X)
+            if was_air:
+                kby = max(kby, AIR_BLOWBACK_Y)
         defender.vx = kbx * face
         defender.vy = kby
         attacker.meter += METER_GAIN_HIT

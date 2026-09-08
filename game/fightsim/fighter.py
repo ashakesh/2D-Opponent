@@ -28,6 +28,7 @@ from fightsim.input import (
 from fightsim.moves import (
     DP,
     FIREBALL,
+    LIGHTS,
     MOVES,
     PROJ_BLOCKSTUN,
     PROJ_DAMAGE,
@@ -71,6 +72,8 @@ def _c_press(f: FighterState, inp: RawInput) -> bool:
 def is_actionable(f: FighterState) -> bool:
     if f.health <= 0 or f.fsm == FSM.DEAD:
         return False
+    if f.landing_lock > 0:
+        return False
     if f.fsm in (FSM.HITSTUN, FSM.BLOCKSTUN, FSM.KNOCKDOWN, FSM.DEAD):
         return False
     if f.fsm == FSM.ATTACK:
@@ -99,7 +102,11 @@ def _start_move(
         f.vx = 0
     events.append(
         CombatEvent(
-            kind="special_cancel" if cancel else "attack_started",
+            kind=(
+                "special_cancel"
+                if cancel and move_id in SPECIALS
+                else ("gatling" if cancel else "attack_started")
+            ),
             attacker=pid,
             defender=0,
             move_id=move_id,
@@ -128,6 +135,15 @@ def try_normals_and_move(
     f: FighterState, inp: RawInput, events: list[CombatEvent], pid: int
 ) -> None:
     if try_special(f, inp, events, pid):
+        return
+    if (
+        f.fsm == FSM.ATTACK
+        and f.can_special_cancel
+        and f.move_id in LIGHTS
+        and _b_press(f, inp)
+        and not airborne(f)
+    ):
+        _start_move(f, "stand_heavy", events, pid, cancel=True)
         return
     if not is_actionable(f):
         return
@@ -197,7 +213,23 @@ def try_normals_and_move(
     f.move_id = ""
 
 
-def advance_stun(f: FighterState) -> None:
+def _end_combo(f: FighterState, events: list[CombatEvent], pid: int) -> None:
+    if f.combo_received > 0:
+        events.append(
+            CombatEvent(
+                kind="combo_ended",
+                attacker=0,
+                defender=pid,
+                data={"length": f.combo_received},
+            )
+        )
+    f.combo_received = 0
+    f.bounce_count = 0
+
+
+def advance_stun(f: FighterState, events: list[CombatEvent], pid: int) -> None:
+    if f.landing_lock > 0:
+        f.landing_lock -= 1
     if f.invuln > 0:
         f.invuln -= 1
 
@@ -215,9 +247,9 @@ def advance_stun(f: FighterState) -> None:
                 f.vx = 0
             else:
                 f.fsm = FSM.IDLE
-                f.combo_received = 0
                 f.vx = 0
                 f.knockdown_pending = False
+                _end_combo(f, events, pid)
         return
 
     if f.fsm == FSM.BLOCKSTUN:
@@ -237,8 +269,8 @@ def advance_stun(f: FighterState) -> None:
             f.fsm = FSM.IDLE
             f.state_frame = 0
             f.knockdown_pending = False
-            f.combo_received = 0
             f.invuln = max(f.invuln, WAKEUP_INVULN)
+            _end_combo(f, events, pid)
 
 
 def end_of_frame_move_tick(f: FighterState, events: list[CombatEvent], pid: int) -> None:
