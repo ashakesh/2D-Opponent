@@ -1,12 +1,15 @@
 from fightsim.api import Simulator
 from fightsim.config import (
+    CHIP_DEN,
+    CHIP_NUM,
     CROUCH_PUSH_W,
     HEALTH_MAX,
     KNOCKDOWN_PUSH_W,
+    METER_START,
     SUBPIXEL,
 )
 from fightsim.input import RawInput, SemanticAction, semantic_to_raw
-from fightsim.moves import CROUCH_LIGHT, DP, STAND_LIGHT, THROW
+from fightsim.moves import CROUCH_LIGHT, DP, PULSE, PROJ_DAMAGE, STAND_LIGHT, THROW
 from fightsim.state import FSM
 
 
@@ -208,3 +211,115 @@ def test_light_into_heavy_gatling():
         else:
             sim.step(RawInput(), RawInput())
     assert gattled
+
+
+def test_throw_on_hit_recovers_while_victim_still_launched():
+    sim = Simulator()
+    sim.reset(0)
+    _close(sim, 28)
+    sim.step(RawInput(c=True), RawInput())
+    recovered_while_launched = False
+    for _ in range(50):
+        sim.step(RawInput(), RawInput())
+        st = sim.get_state()
+        p1_free = st.p1.fsm in (FSM.IDLE, FSM.WALK, FSM.CROUCH) and not st.p1.move_id
+        p2_up = st.p2.fsm == FSM.HITSTUN or st.p2.y > 0
+        if p1_free and p2_up:
+            recovered_while_launched = True
+            break
+    assert recovered_while_launched
+
+
+def test_pulse_pushes_with_little_damage():
+    sim = Simulator()
+    sim.reset(0)
+    _close(sim, 40)
+    x0 = sim.get_state().p2.x
+    sim.get_state().p1.meter = 1000
+    sim.step(RawInput(command_special_3=True), RawInput())
+    _wait(sim, 16)
+    st = sim.get_state()
+    assert st.p2.health == HEALTH_MAX - PULSE.damage
+    assert st.p2.x > x0 + 8 * SUBPIXEL
+    assert st.p2.y < 20 * SUBPIXEL
+
+
+def test_pulse_erases_incoming_fireball():
+    sim = Simulator()
+    sim.reset(0)
+    st = sim.get_state()
+    st.p1.x = 280 * SUBPIXEL
+    st.p2.x = 520 * SUBPIXEL
+    st.p1.facing = 1
+    st.p2.facing = -1
+    st.p1.meter = 1000
+    st.p2.meter = 1000
+    sim.step(RawInput(), RawInput(command_special_1=True))
+    erased = False
+    for _ in range(90):
+        st = sim.get_state()
+        if st.projectiles and abs(st.projectiles[0].x - st.p1.x) < 80 * SUBPIXEL:
+            if st.p1.move_id != "pulse":
+                sim.step(RawInput(command_special_3=True), RawInput())
+            else:
+                sim.step(RawInput(), RawInput())
+        else:
+            sim.step(RawInput(), RawInput())
+        st = sim.get_state()
+        if any(e.kind == "projectile_erased" for e in st.last_events):
+            erased = True
+            break
+        if st.p1.health < HEALTH_MAX:
+            break
+    assert erased
+    assert sim.get_state().p1.health == HEALTH_MAX
+    assert not sim.get_state().projectiles
+
+
+def test_blocked_fireball_chips_blocked_jab_does_not():
+    sim = Simulator()
+    sim.reset(0)
+    _close(sim, 32)
+    block = semantic_to_raw(SemanticAction.BLOCK, -1)
+    p2 = RawInput(left=block.left, right=block.right, down=True)
+    sim.step(RawInput(a=True), p2)
+    _wait(sim, 18, p2=p2)
+    assert sim.get_state().p2.health == HEALTH_MAX
+
+    sim = Simulator()
+    sim.reset(0)
+    st = sim.get_state()
+    st.p1.x = 200 * SUBPIXEL
+    st.p2.x = 500 * SUBPIXEL
+    st.p1.facing = 1
+    st.p2.facing = -1
+    st.p1.meter = 1000
+    block = semantic_to_raw(SemanticAction.BLOCK, -1)
+    p2 = RawInput(left=block.left, right=block.right, down=True)
+    sim.step(RawInput(command_special_1=True), p2)
+    hit = False
+    for _ in range(90):
+        sim.step(RawInput(), p2)
+        if sim.get_state().p2.health < HEALTH_MAX:
+            hit = True
+            break
+    assert hit
+    chip = PROJ_DAMAGE * CHIP_NUM // CHIP_DEN
+    assert sim.get_state().p2.health == HEALTH_MAX - chip
+
+
+def test_defender_gains_more_meter_on_block():
+    sim = Simulator()
+    sim.reset(0)
+    _close(sim, 32)
+    sim.get_state().p1.meter = METER_START
+    sim.get_state().p2.meter = METER_START
+    block = semantic_to_raw(SemanticAction.BLOCK, -1)
+    p2 = RawInput(left=block.left, right=block.right, down=True)
+    sim.step(RawInput(a=True), p2)
+    _wait(sim, 18, p2=p2)
+    st = sim.get_state()
+    assert st.p2.meter > st.p1.meter
+    assert st.p2.meter > METER_START
+    assert st.p1.meter == METER_START
+

@@ -21,15 +21,20 @@ pip install -e .
 
 ```bash
 python -m fightsim.play                 # P1 keyboard vs idle dummy
-python -m fightsim.play --p2 block       # P2 always holds back
-python -m fightsim.play --p2 mash        # P2 taps light
+python -m fightsim.play --p2 block
+python -m fightsim.play --p2 mash
+python -m fightsim.play --p2 aggressive
+python -m fightsim.play --p2 mix         # random personality dummy (R re-rolls)
 python -m fightsim.play --p2 human       # two keyboards
 ```
 
 P1: `A`/`D` walk, `W` jump, `S` crouch, `J` light, `K` heavy, `L` throw.
-Motions: `236+J` fireball, `623+J` DP (numpad, facing-relative). `I`/`O` fire the same specials via the debug **command flag** (not available to raw-input ML policies).
+Motions: `236+J` fireball, `623+J` DP, `214+J` pulse (numpad, facing-relative).
+`I`/`O`/`P` fire fireball / DP / pulse via debug **command flags** (not for raw-input ML policies).
 
-P2 (human): arrows + `Num1` light, `Num2` heavy, `Num3` throw.
+P2 (human): arrows + `Num1` light, `Num2` heavy, `Num3` throw, `Num4–6` command specials.
+
+Dummy styles: `idle`, `block`, `mash`, `crouch_block`, `aggressive`, `defensive`, `rushdown`, `mobile`, `zoner`, `grappler`, `mix`.
 
 ## API
 
@@ -43,4 +48,4 @@ blob = sim.save_state()
 sim.load_state(blob)
 ```
 
-Specials normally require motion inputs. `RawInput.command_special_1` / `command_special_2` skip the motion for semantic ML and debug only.
+Specials normally require motion inputs. `RawInput.command_special_1` / `command_special_2` / `command_special_3` skip the motion for semantic ML and debug only.

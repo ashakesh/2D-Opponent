@@ -26,6 +26,7 @@ class RawInput:
     # Debug / semantic ML only — not part of a real controller.
     command_special_1: bool = False
     command_special_2: bool = False
+    command_special_3: bool = False
 
     def to_dict(self) -> dict[str, bool]:
         return {
@@ -39,6 +40,7 @@ class RawInput:
             "d": self.d,
             "command_special_1": self.command_special_1,
             "command_special_2": self.command_special_2,
+            "command_special_3": self.command_special_3,
         }
 
     @staticmethod
@@ -54,6 +56,7 @@ class RawInput:
             d=bool(d.get("d", False)),
             command_special_1=bool(d.get("command_special_1", False)),
             command_special_2=bool(d.get("command_special_2", False)),
+            command_special_3=bool(d.get("command_special_3", False)),
         )
 
     def horiz(self) -> int:
@@ -85,12 +88,13 @@ class SemanticAction(str, Enum):
     THROW = "throw"
     SPECIAL_1 = "special_1"
     SPECIAL_2 = "special_2"
+    SPECIAL_3 = "special_3"
 
 
 def semantic_to_raw(action: SemanticAction, facing: int) -> RawInput:
     """Map one semantic verb to a single frame of raw input.
 
-    SPECIAL_1 / SPECIAL_2 set command flags so they complete in one step().
+    SPECIAL_1 / SPECIAL_2 / SPECIAL_3 set command flags so they complete in one step().
     BLOCK holds back relative to current facing.
     """
     if action is SemanticAction.NEUTRAL:
@@ -117,6 +121,8 @@ def semantic_to_raw(action: SemanticAction, facing: int) -> RawInput:
         return RawInput(command_special_1=True)
     if action is SemanticAction.SPECIAL_2:
         return RawInput(command_special_2=True)
+    if action is SemanticAction.SPECIAL_3:
+        return RawInput(command_special_3=True)
     return RawInput()
 
 
@@ -159,6 +165,11 @@ def motion_236(buf: list[int]) -> bool:
 def motion_623(buf: list[int]) -> bool:
     """DP / shoryu motion."""
     return _subsequence(buf, (6, 2, 3), MOTION_WINDOW)
+
+
+def motion_214(buf: list[int]) -> bool:
+    """Quarter-circle back (pulse)."""
+    return _subsequence(buf, (2, 1, 4), MOTION_WINDOW)
 
 
 def tap_forward(buf: list[int]) -> bool:

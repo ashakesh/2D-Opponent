@@ -8,8 +8,15 @@ from typing import Any
 
 from fightsim.api import Simulator
 from fightsim.config import FPS, STAGE_WIDTH_PX
-from fightsim.dummy import dummy_input
+from fightsim.dummy import (
+    DUMMY_STYLES,
+    dummy_input,
+    mix_rng_from_seed,
+    pick_mix_style,
+)
 from fightsim.input import RawInput
+
+_P2_CHOICES = DUMMY_STYLES + ("human", "mix")
 
 
 def _p1_from_keys(keys: Any) -> RawInput:
@@ -25,6 +32,7 @@ def _p1_from_keys(keys: Any) -> RawInput:
         c=bool(keys[pygame.K_l]),
         command_special_1=bool(keys[pygame.K_i]),
         command_special_2=bool(keys[pygame.K_o]),
+        command_special_3=bool(keys[pygame.K_p]),
     )
 
 
@@ -41,12 +49,13 @@ def _p2_from_keys(keys: Any) -> RawInput:
         c=bool(keys[pygame.K_KP3]),
         command_special_1=bool(keys[pygame.K_KP4]),
         command_special_2=bool(keys[pygame.K_KP5]),
+        command_special_3=bool(keys[pygame.K_KP6]),
     )
 
 
 def main(argv: list[str] | None = None) -> None:
     parser = argparse.ArgumentParser(description="fightsim debug play")
-    parser.add_argument("--p2", default="idle", choices=("idle", "block", "mash", "crouch_block", "human"))
+    parser.add_argument("--p2", default="idle", choices=_P2_CHOICES)
     parser.add_argument("--seed", type=int, default=0)
     args = parser.parse_args(argv)
 
@@ -66,6 +75,10 @@ def main(argv: list[str] | None = None) -> None:
 
     sim = Simulator()
     sim.reset(args.seed)
+    mix_rng = mix_rng_from_seed(args.seed)
+    p2_style = args.p2
+    if args.p2 == "mix":
+        p2_style, mix_rng = pick_mix_style(mix_rng)
 
     running = True
     while running:
@@ -74,6 +87,8 @@ def main(argv: list[str] | None = None) -> None:
                 running = False
             elif event.type == pygame.KEYDOWN and event.key == pygame.K_r:
                 sim.reset(args.seed)
+                if args.p2 == "mix":
+                    p2_style, mix_rng = pick_mix_style(mix_rng)
             elif event.type == pygame.KEYDOWN and event.key == pygame.K_ESCAPE:
                 running = False
 
@@ -81,11 +96,13 @@ def main(argv: list[str] | None = None) -> None:
         p1 = _p1_from_keys(keys)
         if args.p2 == "human":
             p2 = _p2_from_keys(keys)
+            label = "human"
         else:
-            p2 = dummy_input(sim.get_state(), 2, args.p2)
+            p2 = dummy_input(sim.get_state(), 2, p2_style)
+            label = p2_style
 
         sim.step(p1, p2)
-        render_state(sim.get_state(), screen)
+        render_state(sim.get_state(), screen, p2_label=label)
         pygame.display.flip()
         clock.tick(FPS)
 

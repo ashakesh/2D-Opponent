@@ -32,7 +32,7 @@ python -m fightml.train --p2 mash --seed 1 --save runs/ppo_mash
 python -m fightml.train --p2 mix --n-envs 8
 ```
 
-`--p2` is `idle`, `block` (default), `mash`, `crouch_block`, or `mix` (random dummy each episode). Checkpoints go under `runs/` (gitignored). Training does not import pygame.
+`--p2` is `idle`, `block` (default), `mash`, `crouch_block`, a personality (`aggressive`, `defensive`, `rushdown`, `mobile`, `zoner`, `grappler`), or `mix` (random personality each episode).
 
 TensorBoard logging is off unless you pass `--tb runs/tb` (requires `pip install tensorboard`).
 

@@ -16,7 +16,7 @@ from fightsim.dummy import dummy_input
 from fightsim.input import RawInput
 from fightsim.state import RoundState
 
-from fightml.env import DUMMY_STYLES, action_to_raw
+from fightml.env import DUMMY_STYLES, PERSONALITY_STYLES, action_to_raw
 from fightml.obs import flatten_state
 
 PredictFn = Callable[[Any], int]
@@ -83,6 +83,7 @@ def _p2_from_keys(keys: Any) -> RawInput:
         c=bool(keys[pygame.K_KP3]),
         command_special_1=bool(keys[pygame.K_KP4]),
         command_special_2=bool(keys[pygame.K_KP5]),
+        command_special_3=bool(keys[pygame.K_KP6]),
     )
 
 
@@ -90,7 +91,7 @@ def pick_style(p2: str, rng) -> str:
     if p2 == "human":
         raise ValueError("human is not a scripted dummy style")
     if p2 == "mix":
-        return str(rng.choice(DUMMY_STYLES))
+        return str(rng.choice(PERSONALITY_STYLES))
     if p2 in DUMMY_STYLES:
         return p2
     raise ValueError(f"unknown dummy style: {p2}")

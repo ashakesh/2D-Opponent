@@ -16,6 +16,7 @@ from fightsim.config import (
     CROUCH_PUSH_W,
     GRAVITY_DOWN,
     GRAVITY_UP,
+    HITSTUN_GRAVITY_DOWN,
     KNOCKDOWN_PUSH_H,
     KNOCKDOWN_PUSH_W,
     LANDING_RECOVERY,
@@ -34,7 +35,12 @@ def airborne(f: FighterState) -> bool:
 
 def apply_gravity_and_integrate(f: FighterState) -> None:
     if f.y > 0 or f.vy > 0:
-        g = GRAVITY_UP if f.vy > 0 else GRAVITY_DOWN
+        if f.vy > 0:
+            g = GRAVITY_UP
+        elif f.fsm == FSM.HITSTUN:
+            g = HITSTUN_GRAVITY_DOWN
+        else:
+            g = GRAVITY_DOWN
         f.vy -= g
         f.y += f.vy
     else:

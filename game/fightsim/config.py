@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-SIMULATOR_VERSION = "0.2.0"
+SIMULATOR_VERSION = "0.3.0"
 CHARACTER_CONFIG = "default"
 
 SUBPIXEL = 256
@@ -22,11 +22,9 @@ CROUCH_PUSH_W = 40 * SUBPIXEL
 CROUCH_PUSH_H = 50 * SUBPIXEL
 AIR_PUSH_W = 36 * SUBPIXEL
 AIR_PUSH_H = 64 * SUBPIXEL
-# Lying down: wider and flatter than crouch.
 KNOCKDOWN_PUSH_W = 72 * SUBPIXEL
 KNOCKDOWN_PUSH_H = 28 * SUBPIXEL
 
-# Hurtbox is a slightly larger copy of the pushbox.
 HURT_PAD_X = 4 * SUBPIXEL
 HURT_PAD_Y = 4 * SUBPIXEL
 
@@ -39,16 +37,19 @@ DASH_BACK_SPEED = 8 * SUBPIXEL
 DASH_FRAMES = 14
 JUMP_VY = 20 * SUBPIXEL
 JUMP_VX = 5 * SUBPIXEL
-# Snappy rise, faster fall (anti-air readable).
 GRAVITY_UP = 320
 GRAVITY_DOWN = 512
+# Launched victims hang longer so wall bounce / DP→fireball juggles are hittable.
+HITSTUN_GRAVITY_DOWN = 220
 
 HEALTH_MAX = 10000
 METER_MAX = 1000
 METER_START = 250
 METER_GAIN_HIT = 80
-METER_GAIN_BLOCK = 20
+METER_GAIN_BLOCK_DEFENDER = 50
+METER_GAIN_BLOCK_ATTACKER = 0
 SPECIAL_COST = 250
+PULSE_COST = 150
 
 INPUT_BUFFER = 32
 MOTION_WINDOW = 14
@@ -63,7 +64,6 @@ LANDING_RECOVERY = 4
 
 HITSTOP_DEFAULT = 4
 
-# One bounce total (floor or wall), then knockdown.
 MAX_BOUNCES = 1
 BOUNCE_MIN_VY = 4 * SUBPIXEL
 BOUNCE_VY_NUM = 2
@@ -71,8 +71,11 @@ BOUNCE_VY_DEN = 5
 BOUNCE_VX_NUM = 3
 BOUNCE_VX_DEN = 4
 BOUNCE_HITSTUN = 8
-AIR_BLOWBACK_X = 8 * SUBPIXEL
-AIR_BLOWBACK_Y = 7 * SUBPIXEL
+AIR_BLOWBACK_X = 12 * SUBPIXEL
+AIR_BLOWBACK_Y = 14 * SUBPIXEL
+
+CHIP_NUM = 2
+CHIP_DEN = 5
 
 
 def px(n: int) -> int:

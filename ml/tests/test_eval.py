@@ -48,7 +48,7 @@ def test_pick_style_mix_is_a_dummy():
         def choice(self, seq):
             return seq[0]
 
-    assert pick_style("mix", _Rng()) == "idle"
+    assert pick_style("mix", _Rng()) == "aggressive"
     assert pick_style("mash", _Rng()) == "mash"
     with pytest.raises(ValueError):
         pick_style("human", _Rng())

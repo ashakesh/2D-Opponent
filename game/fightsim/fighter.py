@@ -9,7 +9,6 @@ from fightsim.config import (
     JUMP_VX,
     JUMP_VY,
     KNOCKDOWN_FRAMES,
-    SPECIAL_COST,
     SUBPIXEL,
     WALK_SPEED,
     WAKEUP_INVULN,
@@ -18,6 +17,7 @@ from fightsim.events import CombatEvent
 from fightsim.input import (
     RawInput,
     holding_back,
+    motion_214,
     motion_236,
     motion_623,
     push_buffer,
@@ -30,6 +30,7 @@ from fightsim.moves import (
     FIREBALL,
     LIGHTS,
     MOVES,
+    PULSE,
     PROJ_BLOCKSTUN,
     PROJ_DAMAGE,
     PROJ_H,
@@ -122,11 +123,15 @@ def try_special(f: FighterState, inp: RawInput, events: list[CombatEvent], pid: 
         return False
     want_dp = inp.command_special_2 or (motion_623(f.input_buffer) and _a_press(f, inp))
     want_fb = inp.command_special_1 or (motion_236(f.input_buffer) and _a_press(f, inp))
-    if want_dp and f.meter >= SPECIAL_COST:
+    want_pulse = inp.command_special_3 or (motion_214(f.input_buffer) and _a_press(f, inp))
+    if want_dp and f.meter >= DP.meter_cost:
         _start_move(f, DP.move_id, events, pid, cancel)
         return True
-    if want_fb and f.meter >= SPECIAL_COST:
+    if want_fb and f.meter >= FIREBALL.meter_cost:
         _start_move(f, FIREBALL.move_id, events, pid, cancel)
+        return True
+    if want_pulse and f.meter >= PULSE.meter_cost:
+        _start_move(f, PULSE.move_id, events, pid, cancel)
         return True
     return False
 
@@ -291,7 +296,7 @@ def end_of_frame_move_tick(f: FighterState, events: list[CombatEvent], pid: int)
     if f.fsm == FSM.ATTACK and f.move_id:
         move = MOVES[f.move_id]
         f.state_frame += 1
-        if f.state_frame >= move.total:
+        if f.state_frame >= move.duration(f.move_has_hit):
             if not f.move_has_hit and f.move_id not in SPECIALS | {"fireball"}:
                 events.append(
                     CombatEvent(kind="whiff", attacker=pid, defender=0, move_id=f.move_id)

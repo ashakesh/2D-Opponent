@@ -14,12 +14,11 @@ from gymnasium import spaces
 
 from fightsim.api import Simulator
 from fightsim.config import HEALTH_MAX
-from fightsim.dummy import dummy_input
+from fightsim.dummy import DUMMY_STYLES, PERSONALITY_STYLES, dummy_input
 from fightsim.input import RawInput, SemanticAction, semantic_to_raw
 from fightsim.state import RoundState
 from fightml.obs import OBS_SIZE, flatten_state
 
-DUMMY_STYLES: tuple[str, ...] = ("idle", "block", "mash", "crouch_block")
 DEFAULT_FRAMESKIP = 4
 DEFAULT_DAMAGE_COEF = 0.1
 
@@ -38,6 +37,7 @@ class Phase1Action(IntEnum):
     SPECIAL_2 = 10
     CROUCH_LIGHT = 11
     CROUCH_BLOCK = 12
+    SPECIAL_3 = 13
 
 
 N_ACTIONS = len(Phase1Action)
@@ -56,7 +56,7 @@ def action_to_raw(action: int, facing: int) -> RawInput:
 
 def _resolve_styles(p2: str) -> tuple[str, ...]:
     if p2 == "mix":
-        return DUMMY_STYLES
+        return PERSONALITY_STYLES
     if p2 in DUMMY_STYLES:
         return (p2,)
     raise ValueError(f"unknown dummy style: {p2}")

@@ -20,7 +20,7 @@ def _sy(y: int) -> int:
     return GROUND_SCREEN_Y - (y // SUBPIXEL)
 
 
-def render_state(state: GameState, surface: Optional[Any] = None) -> Any:
+def render_state(state: GameState, surface: Optional[Any] = None, p2_label: str | None = None) -> Any:
     import pygame
 
     if not pygame.get_init():
@@ -48,7 +48,7 @@ def render_state(state: GameState, surface: Optional[Any] = None) -> Any:
         _rect(surface, projectile_box(p), (240, 220, 80), 0)
 
     _health(surface, state)
-    _hud(surface, state)
+    _hud(surface, state, p2_label)
 
     if flip:
         pygame.display.flip()
@@ -107,10 +107,14 @@ def _health(surface: Any, state: GameState) -> None:
     bar(STAGE_WIDTH_PX - 320, 36, 300, 8, state.p2.meter / METER_MAX, (80, 200, 120))
 
 
-def _hud(surface: Any, state: GameState) -> None:
+def _hud(surface: Any, state: GameState, p2_label: str | None = None) -> None:
     font = _font(18)
     t = f"frame {state.frame}  timer {state.timer}  {state.round_state.value}  hitstop {state.hitstop}"
     surface.blit(font.render(t, True, (240, 240, 240)), (STAGE_WIDTH_PX // 2 - 180, 12))
     if state.last_events:
         kinds = ",".join(e.kind for e in state.last_events)
         surface.blit(font.render(kinds, True, (255, 200, 80)), (20, 360))
+    if p2_label:
+        tag = f"P2: {p2_label}"
+        img = font.render(tag, True, (220, 200, 160))
+        surface.blit(img, (STAGE_WIDTH_PX - img.get_width() - 16, 372))

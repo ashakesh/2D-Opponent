@@ -19,7 +19,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         "--p2",
         type=str,
         default="block",
-        help="Dummy style: idle, block, mash, crouch_block, or mix",
+        help="Dummy style: idle, block, mash, crouch_block, personalities, or mix",
     )
     parser.add_argument("--n-envs", type=int, default=8)
     parser.add_argument("--frameskip", type=int, default=4)

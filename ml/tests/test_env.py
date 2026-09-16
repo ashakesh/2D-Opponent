@@ -73,12 +73,19 @@ def test_command_special_flags_only_on_specials():
         if act is Phase1Action.SPECIAL_1:
             assert raw.command_special_1 is True
             assert raw.command_special_2 is False
+            assert raw.command_special_3 is False
         elif act is Phase1Action.SPECIAL_2:
             assert raw.command_special_1 is False
             assert raw.command_special_2 is True
+            assert raw.command_special_3 is False
+        elif act is Phase1Action.SPECIAL_3:
+            assert raw.command_special_3 is True
+            assert raw.command_special_1 is False
+            assert raw.command_special_2 is False
         else:
             assert raw.command_special_1 is False
             assert raw.command_special_2 is False
+            assert raw.command_special_3 is False
     crouch = action_to_raw(int(Phase1Action.CROUCH_LIGHT), facing)
     assert crouch.down is True and crouch.a is True
     block = action_to_raw(int(Phase1Action.CROUCH_BLOCK), facing)

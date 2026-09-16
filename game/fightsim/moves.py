@@ -6,6 +6,7 @@ from dataclasses import dataclass
 
 from fightsim.config import (
     HITSTOP_DEFAULT,
+    PULSE_COST,
     SPECIAL_COST,
     SUBPIXEL,
     THROW_RANGE,
@@ -47,10 +48,15 @@ class MoveDef:
     air_ok: bool = False
     ground_ok: bool = True
     cancelable: bool = True
+    recovery_on_hit: int | None = None
 
     @property
     def total(self) -> int:
         return self.startup + self.active + self.recovery
+
+    def duration(self, hit: bool) -> int:
+        rec = self.recovery_on_hit if hit and self.recovery_on_hit is not None else self.recovery
+        return self.startup + self.active + rec
 
     def is_active(self, frame: int) -> bool:
         return self.startup <= frame < self.startup + self.active
@@ -69,6 +75,7 @@ STAND_LIGHT = MoveDef(
     knockback_y=0,
     hitbox=HitboxDef(px(36), px(52), px(42), px(24)),
     height=Height.HIGH.value,
+    meter_gain=50,
     cancelable=True,
 )
 
@@ -85,6 +92,7 @@ CROUCH_LIGHT = MoveDef(
     knockback_y=0,
     hitbox=HitboxDef(px(52), px(16), px(48), px(18)),
     height=Height.LOW.value,
+    meter_gain=50,
     cancelable=True,
 )
 
@@ -101,6 +109,7 @@ STAND_HEAVY = MoveDef(
     knockback_y=0,
     hitbox=HitboxDef(px(44), px(50), px(50), px(28)),
     height=Height.HIGH.value,
+    meter_gain=80,
     cancelable=True,
 )
 
@@ -113,10 +122,11 @@ JUMP_LIGHT = MoveDef(
     hitstun=14,
     blockstun=8,
     hitstop=HITSTOP_DEFAULT,
-    knockback_x=6 * SUBPIXEL,
-    knockback_y=4 * SUBPIXEL,
+    knockback_x=14 * SUBPIXEL,
+    knockback_y=14 * SUBPIXEL,
     hitbox=HitboxDef(px(48), px(8), px(50), px(32)),
     height=Height.OVERHEAD.value,
+    meter_gain=60,
     air_ok=True,
     ground_ok=False,
     cancelable=False,
@@ -128,14 +138,16 @@ THROW = MoveDef(
     startup=4,
     active=2,
     recovery=22,
+    recovery_on_hit=8,
     damage=1200,
-    hitstun=20,
+    hitstun=22,
     blockstun=0,
-    hitstop=8,
-    knockback_x=14 * SUBPIXEL,
-    knockback_y=8 * SUBPIXEL,
+    hitstop=6,
+    knockback_x=16 * SUBPIXEL,
+    knockback_y=14 * SUBPIXEL,
     hitbox=None,
     height=Height.THROW.value,
+    meter_gain=100,
     knockdown=True,
     is_throw=True,
     throw_range=THROW_RANGE,
@@ -156,6 +168,7 @@ FIREBALL = MoveDef(
     hitbox=None,
     height=Height.HIGH.value,
     meter_cost=SPECIAL_COST,
+    meter_gain=80,
     spawns_projectile=True,
     projectile_frame=12,
     cancelable=False,
@@ -166,17 +179,39 @@ DP = MoveDef(
     startup=5,
     active=6,
     recovery=22,
+    recovery_on_hit=10,
     damage=1500,
-    hitstun=22,
+    hitstun=24,
     blockstun=8,
     hitstop=6,
-    knockback_x=4 * SUBPIXEL,
-    knockback_y=10 * SUBPIXEL,
+    knockback_x=10 * SUBPIXEL,
+    knockback_y=18 * SUBPIXEL,
     hitbox=HitboxDef(px(28), px(70), px(36), px(70)),
     height=Height.HIGH.value,
     meter_cost=SPECIAL_COST,
+    meter_gain=120,
     invuln_frames=4,
     knockdown=True,
+    cancelable=False,
+)
+
+PULSE = MoveDef(
+    move_id="pulse",
+    startup=4,
+    active=4,
+    recovery=16,
+    recovery_on_hit=10,
+    damage=50,
+    hitstun=12,
+    blockstun=8,
+    hitstop=3,
+    knockback_x=14 * SUBPIXEL,
+    knockback_y=0,
+    hitbox=HitboxDef(px(10), px(40), px(96), px(80)),
+    height=Height.HIGH.value,
+    meter_cost=PULSE_COST,
+    meter_gain=40,
+    knockdown=False,
     cancelable=False,
 )
 
@@ -190,12 +225,13 @@ MOVES: dict[str, MoveDef] = {
         THROW,
         FIREBALL,
         DP,
+        PULSE,
     )
 }
 
 NORMALS = frozenset({"stand_light", "crouch_light", "stand_heavy", "jump_light"})
 LIGHTS = frozenset({"stand_light", "crouch_light"})
-SPECIALS = frozenset({"fireball", "dp"})
+SPECIALS = frozenset({"fireball", "dp", "pulse"})
 
 PROJ_W = px(20)
 PROJ_H = px(16)

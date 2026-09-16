@@ -88,11 +88,14 @@ Facing-relative **block = hold back**, not a button.
 | A | Light (stand / crouch+A low / jump+A overhead) |
 | B | Heavy |
 | C | Throw |
-| 236+A | Fireball (meter) |
-| 623+A | DP / uppercut (meter, some invuln) |
+| 236+A | Fireball (meter; chips on block) |
+| 623+A | DP / uppercut (meter, some invuln, highest launch) |
+| 214+A | Pulse (cheaper meter; shove; **erases fireballs**) |
 | 66 / 44 | Forward / back dash (strict tap window) |
 
-**Semantic actions** (`SemanticAction` in `fightsim.input`) map onto one frame of `RawInput`. `SPECIAL_1` / `SPECIAL_2` set `command_special_1` / `command_special_2` so Phase 1 can special in a single `step()`. Those flags are **debug / semantic-ML only**. If a raw-input experiment sets them, Phase 3 is fake — the agent never has to discover 236/623.
+**Semantic actions** (`SemanticAction` in `fightsim.input`) map onto one frame of `RawInput`. `SPECIAL_1` / `SPECIAL_2` / `SPECIAL_3` set `command_special_1/2/3` so Phase 1 can special in a single `step()`. Those flags are **debug / semantic-ML only**. If a raw-input experiment sets them, Phase 3 is fake — the agent never has to discover 236/623/214.
+
+Phase-1 Gym action `Phase1Action.SPECIAL_3` maps to pulse.
 
 ### State and replays
 
@@ -104,11 +107,11 @@ Facing-relative **block = hold back**, not a button.
 
 **Do not put `reward[t]` in the game tape.** Add rewards in the wrapper. Useful events already include hits/blocks/whiffs/throws/projectiles; `combo_ended` includes `length` so you can bin short / medium / long later without a “style” reward.
 
-Bump note: current sim is **0.2.0**. Old 0.1.0 replays are invalid.
+Bump note: current sim is **0.3.0**. Older replays are invalid.
 
 ### What exists in the game (not your job)
 
-- Two identical fighters, one stage, dummy CPU: `idle` / `block` / `mash` / `crouch_block` (`fightsim.dummy`)
+- Two identical fighters, one stage, dummy CPU in `fightsim.dummy`: `idle` / `block` / `mash` / `crouch_block` plus personalities `aggressive` / `defensive` / `rushdown` / `mobile` / `zoner` / `grappler`. Play `--p2 mix` picks a personality (reproducible from `--seed`; `R` re-rolls). HUD shows the resolved name.
 - Headless determinism, save/load, replay tests under `game/tests/`
 - Play: `python -m fightsim.play` (optional pygame)
 
@@ -125,10 +128,11 @@ pip install -e "./game[play]"
 python -m fightsim.play                 # P1 vs idle dummy
 python -m fightsim.play --p2 block
 python -m fightsim.play --p2 mash
+python -m fightsim.play --p2 mix
 python -m fightsim.play --p2 human
 ```
 
-P1: WASD + J/K/L (light/heavy/throw). `I`/`O` fire command specials (do not use these in raw-input training). `R` reset, Esc quit.
+P1: WASD + J/K/L (light/heavy/throw). `I`/`O`/`P` fire command fireball/DP/pulse (do not use these in raw-input training). `R` reset, Esc quit.
 
 Tests:
 
@@ -173,7 +177,7 @@ Recurrent / transformer policies, opponent modeling, hierarchical options, popul
 
 ---
 
-## Combat vocabulary the agent can use (0.2.0)
+## Combat vocabulary the agent can use (0.3.0)
 
 Keep this in mind when designing obs/rewards; do not flatten it into a “creativity” bonus.
 
@@ -181,12 +185,13 @@ Keep this in mind when designing obs/rewards; do not flatten it into a “creati
 - **Crouch kick** — longest grounded normal, **low** (must crouch-block).
 - **Heavy** — slower, more hitstun; on-hit **gatling from lights**; punish tool.
 - **Jump-in** — **overhead** (stand-block only), long down-forward kick; hitting airborne or jump-in connect **blows back with knockdown**. Landing has a short recovery so blocked jump-ins are punishable.
-- **Throw** — beats block; **launches backward** then knockdown / bounce.
-- **Fireball** — spacing; costs meter.
-- **DP** — anti-air / reversal, invuln on startup, **highest damage**, long recovery if whiffed.
-- **Meter** starts at one special (250 / 1000). Hits build meter. Fireball vs DP is a choice.
+- **Throw** — beats block; **launches backward** (mid-arc) then knockdown / bounce. Short recovery **on hit** so you can jab a wall bounce.
+- **Fireball** — spacing; costs 250 meter; **chips on block**.
+- **DP** — anti-air / reversal, invuln on startup, **highest damage and launch arc**, long recovery if whiffed, short on hit (juggle into fireball).
+- **Pulse** — 214+A, 150 meter; almost no damage; shoves; **erases incoming fireballs**. Not a launch.
+- **Meter** starts at one fireball/DP (250 / 1000). Defender gains more meter for a successful block than the attacker. Hits weighted: special/throw > heavy > light > pulse.
 - **Cancels (combo routes, not a combo list):** on-hit special cancel from normals; on-hit **light → heavy** only. Launches + **one** floor/wall bounce give a juggle window. Events: `combo_ended` with `length`. Bin 2 / 3–4 / 5+ in the wrapper if you want.
-- **Mix:** high / low / throw. No chip, no air block.
+- **Mix:** high / low / throw. Strike block does not chip; fireballs do. No air block.
 
 ---
 
