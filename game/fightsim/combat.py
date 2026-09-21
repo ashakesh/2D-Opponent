@@ -2,7 +2,13 @@
 
 from __future__ import annotations
 
-from fightsim.collision import aabb_overlap, hitbox_from_local, hurtbox, projectile_box
+from fightsim.collision import (
+    aabb_overlap,
+    any_overlap,
+    hitbox_from_local,
+    hurtboxes,
+    projectile_box,
+)
 from fightsim.config import (
     AIR_BLOWBACK_X,
     AIR_BLOWBACK_Y,
@@ -69,6 +75,11 @@ def attack_box(f: FighterState, *, spent_ok: bool = False) -> tuple[int, int, in
 
 def current_hitbox(f: FighterState) -> tuple[int, int, int, int] | None:
     return attack_box(f, spent_ok=False)
+
+
+def attack_boxes(f: FighterState, *, spent_ok: bool = False) -> list[tuple[int, int, int, int]]:
+    box = attack_box(f, spent_ok=spent_ok)
+    return [] if box is None else [box]
 
 
 def throw_connects(attacker: FighterState, defender: FighterState, move: MoveDef) -> bool:
@@ -233,17 +244,17 @@ def detect_and_apply(
     elif p2_throw and m2:
         apply_hit(state, p2, p1, 2, 1, m2, blocked=False, is_throw=True, events=events)
 
-    box1 = current_hitbox(p1)
-    p2_hurt = hurtbox(p2)
-    if box1 is not None and m1 and p2.invuln <= 0 and p2.fsm != FSM.DEAD:
-        if aabb_overlap(box1, p2_hurt):
+    p1_hit = attack_boxes(p1)
+    p2_hurt = hurtboxes(p2)
+    if p1_hit and m1 and p2.invuln <= 0 and p2.fsm != FSM.DEAD:
+        if any_overlap(p1_hit, p2_hurt):
             blocked = _blocking(p2, block2, crouch2, m1.height)
             apply_hit(state, p1, p2, 1, 2, m1, blocked=blocked, is_throw=False, events=events)
 
-    box2 = current_hitbox(p2)
-    p1_hurt = hurtbox(p1)
-    if box2 is not None and m2 and p1.invuln <= 0 and p1.fsm != FSM.DEAD:
-        if aabb_overlap(box2, p1_hurt):
+    p2_hit = attack_boxes(p2)
+    p1_hurt = hurtboxes(p1)
+    if p2_hit and m2 and p1.invuln <= 0 and p1.fsm != FSM.DEAD:
+        if any_overlap(p2_hit, p1_hurt):
             blocked = _blocking(p1, block1, crouch1, m2.height)
             apply_hit(state, p2, p1, 2, 1, m2, blocked=blocked, is_throw=False, events=events)
 
@@ -255,10 +266,10 @@ def _pulse_erases(fighter: FighterState, pid: int, proj: Projectile, events: lis
         return False
     if proj.owner == pid:
         return False
-    box = attack_box(fighter, spent_ok=True)
-    if box is None:
+    boxes = attack_boxes(fighter, spent_ok=True)
+    if not boxes:
         return False
-    if not aabb_overlap(box, projectile_box(proj)):
+    if not any_overlap(boxes, [projectile_box(proj)]):
         return False
     events.append(
         CombatEvent(
@@ -308,7 +319,7 @@ def _resolve_projectiles(
         if defender.fsm == FSM.DEAD or defender.invuln > 0:
             alive.append(p)
             continue
-        if aabb_overlap(pb, hurtbox(defender)):
+        if any_overlap([pb], hurtboxes(defender)):
             holding = block2 if p.owner == 1 else block1
             crouch = crouch2 if p.owner == 1 else crouch1
             blocked = _blocking(defender, holding, crouch, p.height)

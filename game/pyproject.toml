@@ -20,5 +20,8 @@ build-backend = "setuptools.build_meta"
 where = ["."]
 include = ["fightsim*"]
 
+[tool.setuptools.package-data]
+fightsim = ["assets/fighters/**/*"]
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]

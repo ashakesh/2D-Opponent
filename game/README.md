@@ -1,6 +1,6 @@
 # fightsim
 
-Tiny deterministic 2D fighting **simulator**. Not a fighting game: no menus, netcode, or animation system.
+Tiny deterministic 2D fighting **simulator**. Not a fighting game: no menus or netcode. Optional PNG overlay is render-only and does not affect `step()`.
 
 Simulation is independent of rendering. `step()` always advances **one** frame and takes both players' raw inputs.
 
@@ -26,7 +26,12 @@ python -m fightsim.play --p2 mash
 python -m fightsim.play --p2 aggressive
 python -m fightsim.play --p2 mix         # random personality dummy (R re-rolls)
 python -m fightsim.play --p2 human       # two keyboards
+python -m fightsim.play --p2 mash --box no   # PNG sprites from art/
+python -m fightsim.play --box yes            # debug push/hurt/hit rects (default)
+python -m fightsim.play --box maybe          # PNG sprites plus live box outlines
 ```
+
+`--box yes` (default) draws the debug rectangles. `--box no` blits `art/` using a feet pivot — PNGs only, plus HUD, with no character-box overlay. `--box maybe` uses the same sprites as `--box no` and overlays push / hurt / hit / projectile outlines.
 
 P1: `A`/`D` walk, `W` jump, `S` crouch, `J` light, `K` heavy, `L` throw.
 Motions: `236+J` fireball, `623+J` DP, `214+J` pulse (numpad, facing-relative).

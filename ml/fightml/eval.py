@@ -1,6 +1,6 @@
-"""Qualitative eval: watch a checkpoint vs dummies, or fight it as P2.
+"""Qualitative eval: the checkpoint is always P2. --p1 selects dummy or human.
 
-Training never imports this module. pygame is required only for the window.
+Training never imports pygame. watch() is the only pygame path.
 """
 
 from __future__ import annotations
@@ -18,9 +18,11 @@ from fightsim.state import RoundState
 
 from fightml.env import DUMMY_STYLES, PERSONALITY_STYLES, action_to_raw
 from fightml.obs import flatten_state
+from fightml.paths import resolve_artifact
+from fightml.spawn import place_fighters
 
 PredictFn = Callable[[Any], int]
-P2_CHOICES = DUMMY_STYLES + ("mix", "human")
+P1_CHOICES = DUMMY_STYLES + ("mix", "human")
 RESET_PAUSE_FRAMES = int(1.5 * FPS)
 
 
@@ -30,15 +32,17 @@ class EpisodeResult:
     frames: int
     p1_health: int
     p2_health: int
-    p2_style: str
+    p1_style: str
+    p1_on_left: bool = True
 
 
 class StickyPolicy:
-    """Hold one semantic action for `frameskip` sim frames (same as FightEnv)."""
+    """Hold one semantic action for `frameskip` sim frames. Default view is P2 (eval)."""
 
-    def __init__(self, predict: PredictFn, frameskip: int) -> None:
+    def __init__(self, predict: PredictFn, frameskip: int, view_pid: int = 2) -> None:
         self.predict = predict
         self.frameskip = max(1, int(frameskip))
+        self.view_pid = int(view_pid)
         self._raw = RawInput()
         self._left = 0
 
@@ -50,17 +54,31 @@ class StickyPolicy:
         if state.round_state != RoundState.FIGHTING:
             return RawInput()
         if self._left <= 0:
-            action = int(self.predict(flatten_state(state)))
-            self._raw = action_to_raw(action, state.p1.facing)
+            action = int(self.predict(flatten_state(state, view_pid=self.view_pid)))
+            fighter = state.p1 if self.view_pid == 1 else state.p2
+            self._raw = action_to_raw(action, fighter.facing)
             self._left = self.frameskip
         self._left -= 1
         return self._raw
 
 
-def load_predict(path: str, deterministic: bool = True) -> PredictFn:
+def _load_model(path: str):
+    try:
+        from sb3_contrib import MaskablePPO
+
+        try:
+            return MaskablePPO.load(path)
+        except Exception:
+            pass
+    except ImportError:
+        pass
     from stable_baselines3 import PPO
 
-    model = PPO.load(path)
+    return PPO.load(path)
+
+
+def load_predict(path: str, deterministic: bool = True) -> PredictFn:
+    model = _load_model(str(resolve_artifact(path)))
 
     def predict(obs) -> int:
         action, _ = model.predict(obs, deterministic=deterministic)
@@ -69,53 +87,74 @@ def load_predict(path: str, deterministic: bool = True) -> PredictFn:
     return predict
 
 
-def _p2_from_keys(keys: Any) -> RawInput:
-    """Same mapping as fightsim.play P2 (human is always P2; the agent is P1)."""
+def _p1_from_keys(keys: Any) -> RawInput:
+    """Same mapping as fightsim.play P1 (human is P1; the agent is P2)."""
     import pygame
 
     return RawInput(
-        left=bool(keys[pygame.K_LEFT]),
-        right=bool(keys[pygame.K_RIGHT]),
-        up=bool(keys[pygame.K_UP]),
-        down=bool(keys[pygame.K_DOWN]),
-        a=bool(keys[pygame.K_KP1]),
-        b=bool(keys[pygame.K_KP2]),
-        c=bool(keys[pygame.K_KP3]),
-        command_special_1=bool(keys[pygame.K_KP4]),
-        command_special_2=bool(keys[pygame.K_KP5]),
-        command_special_3=bool(keys[pygame.K_KP6]),
+        left=bool(keys[pygame.K_a]),
+        right=bool(keys[pygame.K_d]),
+        up=bool(keys[pygame.K_w]),
+        down=bool(keys[pygame.K_s]),
+        a=bool(keys[pygame.K_j]),
+        b=bool(keys[pygame.K_k]),
+        c=bool(keys[pygame.K_l]),
+        command_special_1=bool(keys[pygame.K_i]),
+        command_special_2=bool(keys[pygame.K_o]),
+        command_special_3=bool(keys[pygame.K_p]),
     )
 
 
-def pick_style(p2: str, rng) -> str:
-    if p2 == "human":
+def pick_style(p1: str, rng) -> str:
+    if p1 == "human":
         raise ValueError("human is not a scripted dummy style")
-    if p2 == "mix":
+    if p1 == "mix":
         return str(rng.choice(PERSONALITY_STYLES))
-    if p2 in DUMMY_STYLES:
-        return p2
-    raise ValueError(f"unknown dummy style: {p2}")
+    if p1 in DUMMY_STYLES:
+        return p1
+    raise ValueError(f"unknown dummy style: {p1}")
+
+
+def _summarize(results: list[EpisodeResult], p1: str) -> dict[str, Any]:
+    n = len(results)
+    p1_win = sum(1 for r in results if r.round_state == "p1_win") if n else 0
+    agent_win = sum(1 for r in results if r.round_state == "p2_win") if n else 0
+    return {
+        "p1": p1,
+        "n": n,
+        "p1_win": p1_win,
+        "agent_win": agent_win,
+        "p2_win": agent_win,
+        "draw": sum(1 for r in results if r.round_state == "draw") if n else 0,
+        "incomplete": sum(1 for r in results if r.round_state == "fighting") if n else 0,
+        "mean_p1_health": (sum(r.p1_health for r in results) / n) if n else 0.0,
+        "mean_p2_health": (sum(r.p2_health for r in results) / n) if n else 0.0,
+        "mean_frames": (sum(r.frames for r in results) / n) if n else 0.0,
+        "episodes": results,
+    }
 
 
 def run_episode(
     sim: Simulator,
     predict: PredictFn,
-    p2_style: str,
+    p1_style: str,
     frameskip: int,
     seed: int,
     max_frames: int | None = None,
+    p1_on_left: bool = True,
 ) -> EpisodeResult:
-    """Headless agent (P1) vs one dummy style. Does not import pygame."""
-    if p2_style not in DUMMY_STYLES:
-        raise ValueError(f"run_episode expects a concrete dummy, got {p2_style}")
+    """Headless dummy/human-side P1 vs agent P2. Does not import pygame."""
+    if p1_style not in DUMMY_STYLES:
+        raise ValueError(f"run_episode expects a concrete dummy, got {p1_style}")
     sim.reset(int(seed))
-    policy = StickyPolicy(predict, frameskip)
+    place_fighters(sim.get_state(), p1_on_left=p1_on_left)
+    policy = StickyPolicy(predict, frameskip, view_pid=2)
     frames = 0
     while sim.get_state().round_state == RoundState.FIGHTING:
         if max_frames is not None and frames >= max_frames:
             break
         state = sim.get_state()
-        sim.step(policy.raw(state), dummy_input(state, 2, p2_style))
+        sim.step(dummy_input(state, 1, p1_style), policy.raw(state))
         frames += 1
     state = sim.get_state()
     return EpisodeResult(
@@ -123,13 +162,14 @@ def run_episode(
         frames=frames,
         p1_health=state.p1.health,
         p2_health=state.p2.health,
-        p2_style=p2_style,
+        p1_style=p1_style,
+        p1_on_left=p1_on_left,
     )
 
 
 def evaluate(
     predict: PredictFn,
-    p2: str,
+    p1: str,
     episodes: int,
     frameskip: int,
     seed: int,
@@ -143,41 +183,69 @@ def evaluate(
         run_episode(
             sim,
             predict,
-            pick_style(p2, rng),
+            pick_style(p1, rng),
             frameskip,
             seed=seed + i,
             max_frames=max_frames,
+            p1_on_left=(i % 2 == 0),
         )
         for i in range(int(episodes))
     ]
-    n = len(results)
-    return {
-        "p2": p2,
-        "n": n,
-        "p1_win": sum(1 for r in results if r.round_state == "p1_win"),
-        "p2_win": sum(1 for r in results if r.round_state == "p2_win"),
-        "draw": sum(1 for r in results if r.round_state == "draw"),
-        "incomplete": sum(1 for r in results if r.round_state == "fighting"),
-        "mean_p1_health": sum(r.p1_health for r in results) / n,
-        "mean_p2_health": sum(r.p2_health for r in results) / n,
-        "mean_frames": sum(r.frames for r in results) / n,
-        "episodes": results,
-    }
+    return _summarize(results, p1)
+
+
+def evaluate_per_style(
+    predict: PredictFn,
+    episodes_per_style: int,
+    frameskip: int,
+    seed: int,
+    max_frames: int | None = None,
+) -> dict[str, dict[str, Any]]:
+    """Score each personality as P1, half the episodes with P1 on the right."""
+    sim = Simulator()
+    n = max(1, int(episodes_per_style))
+    by_style: dict[str, dict[str, Any]] = {}
+    all_eps: list[EpisodeResult] = []
+    for si, style in enumerate(PERSONALITY_STYLES):
+        results: list[EpisodeResult] = []
+        for j in range(n):
+            results.append(
+                run_episode(
+                    sim,
+                    predict,
+                    style,
+                    frameskip,
+                    seed=seed + si * 100 + j,
+                    max_frames=max_frames,
+                    p1_on_left=(j % 2 == 0),
+                )
+            )
+        by_style[style] = _summarize(results, style)
+        all_eps.extend(results)
+    by_style["total"] = _summarize(all_eps, "mix")
+    return by_style
 
 
 def format_summary(stats: dict[str, Any]) -> str:
     return (
-        f"p2={stats['p2']}  n={stats['n']}  "
-        f"p1_win={stats['p1_win']}  p2_win={stats['p2_win']}  "
+        f"p1={stats['p1']}  n={stats['n']}  "
+        f"agent_win={stats['agent_win']}  p1_win={stats['p1_win']}  "
         f"draw={stats['draw']}  incomplete={stats['incomplete']}  "
         f"p1_hp={stats['mean_p1_health']:.0f}  p2_hp={stats['mean_p2_health']:.0f}  "
         f"frames={stats['mean_frames']:.0f}"
     )
 
 
+def format_per_style(by_style: dict[str, dict[str, Any]]) -> str:
+    lines = [format_summary(by_style[s]) for s in PERSONALITY_STYLES if s in by_style]
+    if "total" in by_style:
+        lines.append(format_summary(by_style["total"]))
+    return "\n".join(lines)
+
+
 def watch(
     predict: PredictFn,
-    p2: str,
+    p1: str,
     frameskip: int,
     seed: int,
     episodes: int = 0,
@@ -194,27 +262,27 @@ def watch(
 
     from fightsim.render import render_state
 
-    human = p2 == "human"
+    human = p1 == "human"
     pygame.init()
     pygame.font.init()
     screen = pygame.display.set_mode((STAGE_WIDTH_PX, 400))
-    pygame.display.set_caption(f"fightml eval — P1 agent vs P2 {p2}")
+    pygame.display.set_caption(f"fightml eval — P1 {p1} vs P2 agent")
     clock = pygame.time.Clock()
     font = pygame.font.Font(None, 20)
 
     if human:
         print(
-            "You are P2 (red). Arrows move, Num1/2/3 light/heavy/throw, "
-            "Num4/5 specials. R reset, Esc quit."
+            "You are P1 (blue). WASD move, J/K/L light/heavy/throw, "
+            "I/O/P specials. R reset, Esc quit. Agent is P2 (red)."
         )
 
     import numpy as np
 
     rng = np.random.default_rng(seed)
     sim = Simulator()
-    policy = StickyPolicy(predict, frameskip)
+    policy = StickyPolicy(predict, frameskip, view_pid=2)
     round_seed = int(seed)
-    style = "human" if human else pick_style(p2, rng)
+    style = "human" if human else pick_style(p1, rng)
     sim.reset(round_seed)
     finished: list[EpisodeResult] = []
     over_frames = 0
@@ -229,7 +297,7 @@ def watch(
                 running = False
             elif event.type == pygame.KEYDOWN and event.key == pygame.K_r:
                 round_seed += 1
-                style = "human" if human else pick_style(p2, rng)
+                style = "human" if human else pick_style(p1, rng)
                 sim.reset(round_seed)
                 policy.reset()
                 over_frames = 0
@@ -238,8 +306,8 @@ def watch(
         state = sim.get_state()
         keys = pygame.key.get_pressed()
         if state.round_state == RoundState.FIGHTING:
-            p2_raw = _p2_from_keys(keys) if human else dummy_input(state, 2, style)
-            sim.step(policy.raw(state), p2_raw)
+            p1_raw = _p1_from_keys(keys) if human else dummy_input(state, 1, style)
+            sim.step(p1_raw, policy.raw(state))
             recorded = False
             over_frames = 0
         else:
@@ -251,7 +319,7 @@ def watch(
                         frames=st.frame,
                         p1_health=st.p1.health,
                         p2_health=st.p2.health,
-                        p2_style=style,
+                        p1_style=style,
                     )
                 )
                 recorded = True
@@ -261,15 +329,15 @@ def watch(
                 over_frames += 1
                 if over_frames >= RESET_PAUSE_FRAMES:
                     round_seed += 1
-                    style = pick_style(p2, rng)
+                    style = pick_style(p1, rng)
                     sim.reset(round_seed)
                     policy.reset()
                     over_frames = 0
                     recorded = False
 
-        render_state(sim.get_state(), screen)
-        label = f"P1 agent   P2 {style}   skip={frameskip}   R reset"
-        screen.blit(font.render(label, True, (200, 200, 200)), (20, 380))
+        render_state(sim.get_state(), screen, p2_label="agent")
+        overlay = f"P1 {style}   P2 agent   skip={frameskip}   R reset"
+        screen.blit(font.render(overlay, True, (200, 200, 200)), (20, 380))
         pygame.display.flip()
         clock.tick(FPS)
 
@@ -279,15 +347,18 @@ def watch(
 
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(
-        description="Watch or score a trained P1 policy vs dummies / a human P2."
+        description="Watch or score a trained policy as P2 vs a dummy / human P1."
     )
-    parser.add_argument("model", help="SB3 checkpoint from train --save (zip)")
     parser.add_argument(
-        "--p2",
+        "model",
+        help="SB3 checkpoint from train --save (zip). Relative paths resolve under ml/runs.",
+    )
+    parser.add_argument(
+        "--p1",
         type=str,
         default="block",
-        choices=P2_CHOICES,
-        help="Scripted dummy, mix, or human (P2 keyboard)",
+        choices=P1_CHOICES,
+        help="Scripted dummy, mix, or human (P1 keyboard: WASD+JKL)",
     )
     parser.add_argument("--frameskip", type=int, default=4)
     parser.add_argument("--seed", type=int, default=0)
@@ -300,7 +371,12 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument(
         "--headless",
         action="store_true",
-        help="Print win/health stats; no pygame. Cannot use --p2 human.",
+        help="Print win/health stats; no pygame. Cannot use --p1 human.",
+    )
+    parser.add_argument(
+        "--per-style",
+        action="store_true",
+        help="Headless: run episodes_per_style vs each personality as P1 (both orientations).",
     )
     parser.add_argument(
         "--stochastic",
@@ -313,31 +389,24 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
 def main(argv: list[str] | None = None) -> None:
     args = parse_args(argv)
     if args.headless:
-        if args.p2 == "human":
-            print("--headless cannot use --p2 human", file=sys.stderr)
+        if args.p1 == "human":
+            print("--headless cannot use --p1 human", file=sys.stderr)
             sys.exit(2)
-        n = args.episodes if args.episodes > 0 else 20
         predict = load_predict(args.model, deterministic=not args.stochastic)
-        stats = evaluate(predict, args.p2, n, args.frameskip, args.seed)
+        if args.per_style:
+            n = args.episodes if args.episodes > 0 else 10
+            table = evaluate_per_style(predict, n, args.frameskip, args.seed)
+            print(format_per_style(table))
+            return
+        n = args.episodes if args.episodes > 0 else 20
+        stats = evaluate(predict, args.p1, n, args.frameskip, args.seed)
         print(format_summary(stats))
         return
 
     predict = load_predict(args.model, deterministic=not args.stochastic)
-    finished = watch(predict, args.p2, args.frameskip, args.seed, episodes=args.episodes)
+    finished = watch(predict, args.p1, args.frameskip, args.seed, episodes=args.episodes)
     if finished:
-        n = len(finished)
-        stats = {
-            "p2": args.p2,
-            "n": n,
-            "p1_win": sum(1 for r in finished if r.round_state == "p1_win"),
-            "p2_win": sum(1 for r in finished if r.round_state == "p2_win"),
-            "draw": sum(1 for r in finished if r.round_state == "draw"),
-            "incomplete": 0,
-            "mean_p1_health": sum(r.p1_health for r in finished) / n,
-            "mean_p2_health": sum(r.p2_health for r in finished) / n,
-            "mean_frames": sum(r.frames for r in finished) / n,
-        }
-        print(format_summary(stats))
+        print(format_summary(_summarize(finished, args.p1)))
 
 
 if __name__ == "__main__":

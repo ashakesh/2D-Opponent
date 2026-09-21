@@ -39,7 +39,7 @@ Research (later milestones):
 pip install -e "./game" -e "./ml"
 ```
 
-ML research owners: start at [`ml/HANDOFF.md`](ml/HANDOFF.md). Do not add training code to `game/`.
+ML research owners: start at [`ml/HANDOFF.md`](ml/HANDOFF.md). Do not add training code to `game/`. Train/eval checkpoints live in [`ml/runs/`](ml/runs/) — not a `runs/` folder at the repo root.
 
 ## Tests
 

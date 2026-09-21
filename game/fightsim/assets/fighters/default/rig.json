@@ -1,0 +1,38 @@
+{
+  "canvas": {"w": 160, "h": 128, "pivot_x": 56, "pivot_y": 120},
+  "projectile_canvas": {"w": 16, "h": 16, "pivot_x": 8, "pivot_y": 8},
+  "character_box": {"w": 40, "h": 80},
+  "lengths": {
+    "head_w": 8,
+    "head_h": 11,
+    "upper_arm": 18,
+    "forearm": 18,
+    "thigh": 20,
+    "shin": 16,
+    "chest_w": 18,
+    "waist_w": 12,
+    "limb_r": 2,
+    "torso_lean_max": 10
+  },
+  "contact_joint": {
+    "stand_light": "r_hand",
+    "crouch_light": "r_hand",
+    "stand_heavy": "r_hand",
+    "jump_light": "r_foot",
+    "throw": "r_hand",
+    "fireball": "r_hand",
+    "dp": "r_hand",
+    "pulse": null
+  },
+  "rest": {
+    "head": [2, 74],
+    "neck": [1, 67],
+    "l_shoulder": [-7, 62],
+    "r_shoulder": [8, 62],
+    "l_hand": [-5, 38],
+    "r_hand": [12, 56],
+    "hip": [0, 36],
+    "l_foot": [-11, 0],
+    "r_foot": [12, 0]
+  }
+}

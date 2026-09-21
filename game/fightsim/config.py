@@ -18,6 +18,11 @@ STAGE_HEIGHT = STAGE_HEIGHT_PX * SUBPIXEL
 # Fighter body (pixels → subpixels)
 STAND_PUSH_W = 40 * SUBPIXEL
 STAND_PUSH_H = 80 * SUBPIXEL
+# Sprite slot / origin parent. Does not follow crouch/air/knockdown push size.
+CHAR_BOX_W_PX = 40
+CHAR_BOX_H_PX = 80
+CHAR_BOX_W = CHAR_BOX_W_PX * SUBPIXEL
+CHAR_BOX_H = CHAR_BOX_H_PX * SUBPIXEL
 CROUCH_PUSH_W = 40 * SUBPIXEL
 CROUCH_PUSH_H = 50 * SUBPIXEL
 AIR_PUSH_W = 36 * SUBPIXEL

@@ -147,7 +147,7 @@ Your package:
 pip install -e "./game" -e "./ml"
 ```
 
-`fightml` currently has **no** `env.py` or `train.py`. That is the first code you write.
+`fightml` has `env.py` / `train.py` / `eval.py`. Current run is **mix3**: MaskablePPO, 50/50 dummy personalities vs `ml/runs/pool/`, timeout lead 2000 (cheap clock-out = 0), whiff penalty, action masks. Eval plays the zip as **P2** (`--p1` dummy/human). Artifacts belong in **`ml/runs/` only** (relative `runs/...` flags resolve there regardless of cwd). Next: PFSP win-rate sampling, then raw-input with command flags off.
 
 ---
 

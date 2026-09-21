@@ -1,6 +1,8 @@
 """Flatten GameState into a numeric observation vector.
 
 Pixels, input buffers, and RNG are intentionally omitted (Phase-1 MLP).
+view_pid=1 is the training layout. view_pid=2 swaps me/opp for a frozen P2 policy.
+No coordinate mirror: random spawn already trains both screen sides.
 """
 
 from __future__ import annotations
@@ -12,7 +14,6 @@ from fightsim.state import FSM, FighterState, GameState, Projectile, initial_sta
 
 FSM_ORDER: tuple[FSM, ...] = tuple(FSM)
 
-# Typical combat scales (not sim constants) so features sit near [-1, 1].
 _VEL_X = STAGE_WIDTH * 0.02
 _VEL_Y = STAGE_HEIGHT * 0.15
 _STUN = 32.0
@@ -50,32 +51,40 @@ def _fighter_features(f: FighterState) -> list[float]:
     ]
 
 
-def _projectile_features(proj: Projectile | None, p1: FighterState) -> list[float]:
+def _projectile_features(
+    proj: Projectile | None, me: FighterState, view_pid: int
+) -> list[float]:
     if proj is None:
         return [0.0, 0.0, 0.0, 0.0, 0.0]
-    owner = 1.0 if proj.owner == 1 else -1.0
+    owner = 1.0 if proj.owner == view_pid else -1.0
     return [
         owner,
-        (proj.x - p1.x) / STAGE_WIDTH,
-        (proj.y - p1.y) / STAGE_HEIGHT,
+        (proj.x - me.x) / STAGE_WIDTH,
+        (proj.y - me.y) / STAGE_HEIGHT,
         proj.vx / _PROJ_VX,
         proj.lifetime / _PROJ_LIFE,
     ]
 
 
-def flatten_state(state: GameState) -> np.ndarray:
-    """P1-centric float32 vector for an MLP policy."""
+def flatten_state(state: GameState, view_pid: int = 1) -> np.ndarray:
+    """Viewer-centric float32 vector. view_pid 1 or 2; default matches Phase-1 P1."""
+    if int(view_pid) == 2:
+        me, opp = state.p2, state.p1
+        pid = 2
+    else:
+        me, opp = state.p1, state.p2
+        pid = 1
     feats: list[float] = []
-    feats.extend(_fighter_features(state.p1))
-    feats.extend(_fighter_features(state.p2))
-    feats.append((state.p2.x - state.p1.x) / STAGE_WIDTH)
+    feats.extend(_fighter_features(me))
+    feats.extend(_fighter_features(opp))
+    feats.append((opp.x - me.x) / STAGE_WIDTH)
     feats.append(state.timer / ROUND_TIMER)
     feats.append(state.hitstop / _HITSTOP)
     slots = list(state.projectiles[:_MAX_PROJECTILES])
     while len(slots) < _MAX_PROJECTILES:
         slots.append(None)
     for proj in slots:
-        feats.extend(_projectile_features(proj, state.p1))
+        feats.extend(_projectile_features(proj, me, pid))
     return np.asarray(feats, dtype=np.float32)
 
 

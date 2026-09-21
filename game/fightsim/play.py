@@ -56,6 +56,7 @@ def _p2_from_keys(keys: Any) -> RawInput:
 def main(argv: list[str] | None = None) -> None:
     parser = argparse.ArgumentParser(description="fightsim debug play")
     parser.add_argument("--p2", default="idle", choices=_P2_CHOICES)
+    parser.add_argument("--box", default="yes", choices=("yes", "no", "maybe"))
     parser.add_argument("--seed", type=int, default=0)
     args = parser.parse_args(argv)
 
@@ -102,7 +103,7 @@ def main(argv: list[str] | None = None) -> None:
             label = p2_style
 
         sim.step(p1, p2)
-        render_state(sim.get_state(), screen, p2_label=label)
+        render_state(sim.get_state(), screen, p2_label=label, box=args.box)
         pygame.display.flip()
         clock.tick(FPS)
 

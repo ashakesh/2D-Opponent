@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from fightsim.config import HURT_PAD_X, HURT_PAD_Y
+from fightsim.config import CHAR_BOX_H, CHAR_BOX_W, HURT_PAD_X, HURT_PAD_Y
 from fightsim.state import FighterState, Projectile
 
 
@@ -19,6 +19,12 @@ def overlap_x(a: Box, b: Box) -> int:
     return min(a[2], b[2]) - max(a[0], b[0])
 
 
+def character_box(f: FighterState) -> Box:
+    """Fixed sprite slot at the fighter origin. Size does not follow pose push."""
+    hw = CHAR_BOX_W // 2
+    return (f.x - hw, f.y, f.x + hw, f.y + CHAR_BOX_H)
+
+
 def pushbox(f: FighterState) -> Box:
     hw = f.push_w // 2
     return (f.x - hw, f.y, f.x + hw, f.y + f.push_h)
@@ -27,6 +33,14 @@ def pushbox(f: FighterState) -> Box:
 def hurtbox(f: FighterState) -> Box:
     l, b, r, t = pushbox(f)
     return (l - HURT_PAD_X, b, r + HURT_PAD_X, t + HURT_PAD_Y)
+
+
+def hurtboxes(f: FighterState) -> list[Box]:
+    return [hurtbox(f)]
+
+
+def any_overlap(a: list[Box], b: list[Box]) -> bool:
+    return any(aabb_overlap(x, y) for x in a for y in b)
 
 
 def hitbox_from_local(
