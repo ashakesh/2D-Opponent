@@ -175,7 +175,7 @@ def try_normals_and_move(
         f.fsm = FSM.JUMP
         return
 
-    if inp.up:
+    if inp.up and f.jump_lock <= 0:
         f.fsm = FSM.JUMP
         f.state_frame = 0
         f.move_id = ""
@@ -235,6 +235,8 @@ def _end_combo(f: FighterState, events: list[CombatEvent], pid: int) -> None:
 def advance_stun(f: FighterState, events: list[CombatEvent], pid: int) -> None:
     if f.landing_lock > 0:
         f.landing_lock -= 1
+    if f.jump_lock > 0:
+        f.jump_lock -= 1
     if f.invuln > 0:
         f.invuln -= 1
 

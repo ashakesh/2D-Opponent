@@ -3,9 +3,10 @@
 from __future__ import annotations
 
 import numpy as np
+import pytest
 
-from fightsim.config import HEALTH_MAX, SUBPIXEL
-from fightml.env import FightEnv, Phase1Action, action_to_raw, terminal_bonus
+from fightsim.config import HEALTH_MAX, ROUND_TIMER, SUBPIXEL
+from fightml.env import DEFAULT_TIME_COST, FightEnv, Phase1Action, action_to_raw, terminal_bonus
 from fightsim.state import RoundState
 from fightml.obs import OBS_SIZE, flatten_state
 from fightml.spawn import GAP_MAX, GAP_MIN
@@ -57,7 +58,14 @@ def test_episode_ends_on_ko():
 
 
 def test_reward_non_negative_when_only_p2_takes_damage():
-    env = FightEnv(dummy_style="idle", frameskip=4, damage_coef=0.1, dummy_only=True)
+    env = FightEnv(
+        dummy_style="idle",
+        frameskip=4,
+        damage_coef=0.1,
+        dummy_only=True,
+        time_cost=0.0,
+        whiff_penalty=0.0,
+    )
     env.reset(seed=0)
     _close(env, 36)
     obs, reward, terminated, truncated, info = env.step(int(Phase1Action.LIGHT))
@@ -125,9 +133,9 @@ def test_random_spawn_uses_both_sides_and_legal_gap():
 def test_terminal_bonus_timeout_lead():
     assert terminal_bonus(RoundState.P1_WIN, 10000, 0, timed_out=False) == 1.0
     assert terminal_bonus(RoundState.P2_WIN, 0, 10000, timed_out=False) == -1.0
-    assert terminal_bonus(RoundState.P1_WIN, 10000, 10000, timed_out=True) == 0.0
-    assert terminal_bonus(RoundState.P1_WIN, 10000, 9600, timed_out=True) == 0.0
-    assert terminal_bonus(RoundState.P1_WIN, 10000, 8000, timed_out=True) == 0.5
+    assert terminal_bonus(RoundState.P1_WIN, 10000, 10000, timed_out=True) == -0.25
+    assert terminal_bonus(RoundState.P1_WIN, 10000, 9600, timed_out=True) == -0.25
+    assert terminal_bonus(RoundState.P1_WIN, 10000, 8000, timed_out=True) == 0.25
     assert terminal_bonus(RoundState.P2_WIN, 7000, 10000, timed_out=True) == -1.0
 
 
@@ -151,16 +159,17 @@ def test_timeout_full_health_is_not_a_win():
             break
     assert terminated
     assert info["round_state"] in ("draw", "p1_win", "p2_win")
-    assert reward == 0.0
+    assert reward == pytest.approx(-0.25, abs=0.01)
 
 
-def test_whiff_at_range_is_penalized():
+def test_whiff_out_of_range_is_free():
     env = FightEnv(
         dummy_style="idle",
         frameskip=4,
         dummy_only=True,
         random_spawn=False,
         damage_coef=0.0,
+        time_cost=0.0,
         whiff_penalty=0.02,
     )
     env.reset(seed=0)
@@ -173,7 +182,54 @@ def test_whiff_at_range_is_penalized():
         total += reward
         if terminated:
             break
+    assert total == pytest.approx(0.0, abs=1e-9)
+
+
+def test_whiff_in_range_is_penalized():
+    env = FightEnv(
+        dummy_style="idle",
+        frameskip=4,
+        dummy_only=True,
+        random_spawn=False,
+        damage_coef=0.0,
+        time_cost=0.0,
+        whiff_penalty=0.02,
+    )
+    env.reset(seed=0)
+    # Origin gap is inside the 100px tax band but outside stand-light reach.
+    st = env.sim.get_state()
+    mid = 400 * SUBPIXEL
+    gap = 96 * SUBPIXEL
+    st.p1.x = mid - gap // 2
+    st.p2.x = mid + gap // 2
+    st.p1.facing = 1
+    st.p2.facing = -1
+    st.p1.y = 0
+    st.p2.y = 0
+    total = 0.0
+    for _ in range(8):
+        _, reward, terminated, _, _ = env.step(int(Phase1Action.LIGHT))
+        total += reward
+        if terminated:
+            break
     assert total < 0.0
+
+
+def test_time_cost_accumulates():
+    env = FightEnv(
+        dummy_style="idle",
+        frameskip=4,
+        dummy_only=True,
+        random_spawn=False,
+        damage_coef=0.0,
+        time_cost=DEFAULT_TIME_COST,
+        whiff_penalty=0.0,
+    )
+    env.reset(seed=0)
+    expected = -DEFAULT_TIME_COST / (ROUND_TIMER / 4)
+    _, reward, terminated, _, _ = env.step(int(Phase1Action.NEUTRAL))
+    assert not terminated
+    assert reward == pytest.approx(expected)
 
 
 def test_dummy_only_info_kind():

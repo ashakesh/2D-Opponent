@@ -14,6 +14,7 @@
     "hitstun": {"files": ["hitstun_00.png"], "loop": false},
     "hitstun_air": {"files": ["hitstun_air_00.png"], "loop": false},
     "blockstun": {"files": ["blockstun_00.png"], "loop": false},
+    "jump_light_land_recovery": {"files": ["jump_light_land_recovery_00.png"], "loop": false},
     "knockdown": {"files": ["knockdown_00.png", "knockdown_01.png"], "loop": false},
     "wakeup": {"files": ["wakeup_00.png"], "loop": false},
     "dead": {"files": ["dead_00.png"], "loop": false},

@@ -39,6 +39,16 @@ def _clamp_meter(f: FighterState) -> None:
         f.meter = METER_MAX
 
 
+def block_push_speeds(move: MoveDef, dmg: int) -> tuple[int, int]:
+    """Attacker slide-away and defender nudge on block. Pulse keeps its shove."""
+    if move.move_id == "pulse":
+        return 10 * SUBPIXEL, move.knockback_x or 14 * SUBPIXEL
+    atk = dmg * 12 * SUBPIXEL // 1500
+    atk = max(2 * SUBPIXEL, min(atk, 12 * SUBPIXEL))
+    dfn = max(SUBPIXEL, atk // 2)
+    return atk, dfn
+
+
 def _blocking(f: FighterState, holding_back: bool, crouching: bool, height: str) -> bool:
     if not holding_back:
         return False
@@ -119,7 +129,6 @@ def apply_hit(
 ) -> None:
     dmg = move.damage if damage_override is None else damage_override
     hs = move.hitstun if hitstun_override is None else hitstun_override
-    bs = move.blockstun if blockstun_override is None else blockstun_override
     stop = move.hitstop if hitstop_override is None else hitstop_override
     kbx = move.knockback_x if knockback_x_override is None else knockback_x_override
     kby = move.knockback_y if knockback_y_override is None else knockback_y_override
@@ -134,10 +143,8 @@ def apply_hit(
     was_air = airborne(defender)
 
     if blocked and not is_throw:
-        defender.fsm = FSM.BLOCKSTUN
-        defender.blockstun = bs
         defender.hitstun = 0
-        defender.move_id = ""
+        defender.blockstun = 0
         defender.can_special_cancel = False
         if defender.combo_received > 0:
             events.append(
@@ -149,8 +156,12 @@ def apply_hit(
                 )
             )
         defender.combo_received = 0
-        defender.vx = kbx * face // 2 if kbx else 2 * SUBPIXEL * face
+        atk_push, dfn_push = block_push_speeds(move, dmg if dmg else move.damage)
+        defender.x += dfn_push * face
+        attacker.x += -face * atk_push
+        defender.vx = dfn_push * face
         defender.vy = 0
+        attacker.vx = -face * atk_push
         chip = 0
         if move.move_id == "fireball_proj" and dmg > 0:
             chip = dmg * CHIP_NUM // CHIP_DEN

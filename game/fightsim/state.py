@@ -138,6 +138,7 @@ class FighterState:
     knockdown_pending: bool
     bounce_count: int
     landing_lock: int
+    jump_lock: int
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -167,6 +168,7 @@ class FighterState:
             "knockdown_pending": self.knockdown_pending,
             "bounce_count": self.bounce_count,
             "landing_lock": self.landing_lock,
+            "jump_lock": self.jump_lock,
         }
 
     @staticmethod
@@ -201,6 +203,7 @@ class FighterState:
             knockdown_pending=bool(d["knockdown_pending"]),
             bounce_count=int(d.get("bounce_count", 0)),
             landing_lock=int(d.get("landing_lock", 0)),
+            jump_lock=int(d.get("jump_lock", 0)),
         )
 
 
@@ -285,6 +288,7 @@ def _blank_fighter(x: int, facing: int) -> FighterState:
         knockdown_pending=False,
         bounce_count=0,
         landing_lock=0,
+        jump_lock=0,
     )
 
 

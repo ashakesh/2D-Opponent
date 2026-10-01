@@ -8,7 +8,15 @@ from pathlib import Path
 from stable_baselines3.common.callbacks import CheckpointCallback
 from stable_baselines3.common.vec_env import DummyVecEnv, VecMonitor
 
-from fightml.env import make_fight_env
+from fightml.env import (
+    DEFAULT_TIME_COST,
+    DEFAULT_TIMEOUT_DRAW,
+    DEFAULT_TIMEOUT_LEAD,
+    DEFAULT_TIMEOUT_WIN,
+    DEFAULT_WHIFF_PENALTY,
+    DEFAULT_WHIFF_RANGE_PX,
+    make_fight_env,
+)
 from fightml.paths import resolve_runs_path
 
 
@@ -17,7 +25,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         description="Train Maskable PPO (P1) against dummies and/or a frozen pool."
     )
     parser.add_argument("--seed", type=int, default=0)
-    parser.add_argument("--timesteps", type=int, default=1_000_000)
+    parser.add_argument("--timesteps", type=int, default=30_000_000)
     parser.add_argument(
         "--p2",
         type=str,
@@ -29,19 +37,19 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument(
         "--save",
         type=str,
-        default="runs/ppo_mix3",
+        default="runs/ppo_mix4",
         help="Checkpoint stem. Relative paths land in ml/runs, independent of cwd.",
     )
     parser.add_argument(
         "--pool",
         type=str,
-        default="runs/pool",
+        default="runs/pool4",
         help="Frozen-checkpoint dir (also P2 pool). Relative paths land in ml/runs.",
     )
     parser.add_argument(
         "--ckpt-every",
         type=int,
-        default=100_000,
+        default=1_000_000,
         help="Save a pool checkpoint every N timesteps (0 disables).",
     )
     parser.add_argument(
@@ -55,8 +63,18 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         action="store_true",
         help="Never sample the pool; dummy personalities only.",
     )
-    parser.add_argument("--timeout-lead", type=int, default=2000)
-    parser.add_argument("--whiff-penalty", type=float, default=0.02)
+    parser.add_argument("--timeout-lead", type=int, default=DEFAULT_TIMEOUT_LEAD)
+    parser.add_argument("--timeout-win", type=float, default=DEFAULT_TIMEOUT_WIN)
+    parser.add_argument("--timeout-draw", type=float, default=DEFAULT_TIMEOUT_DRAW)
+    parser.add_argument("--time-cost", type=float, default=DEFAULT_TIME_COST)
+    parser.add_argument("--whiff-penalty", type=float, default=DEFAULT_WHIFF_PENALTY)
+    parser.add_argument("--whiff-range", type=float, default=DEFAULT_WHIFF_RANGE_PX)
+    parser.add_argument(
+        "--ent-coef",
+        type=float,
+        default=0.02,
+        help="PPO entropy coefficient (SB3 default is 0.01).",
+    )
     parser.add_argument(
         "--tb",
         type=str,
@@ -87,7 +105,11 @@ def make_vec_env(args: argparse.Namespace) -> VecMonitor:
         pool_frac=args.opponent_pool_frac,
         dummy_only=args.dummy_only,
         timeout_lead=args.timeout_lead,
+        timeout_win=args.timeout_win,
+        timeout_draw=args.timeout_draw,
+        time_cost=args.time_cost,
         whiff_penalty=args.whiff_penalty,
+        whiff_range_px=args.whiff_range,
     )
     env = DummyVecEnv([thunk for _ in range(int(args.n_envs))])
     env.seed(int(args.seed))
@@ -113,6 +135,7 @@ def train(args: argparse.Namespace) -> Path:
         env,
         seed=args.seed,
         tensorboard_log=tb_log,
+        ent_coef=float(args.ent_coef),
         verbose=1,
     )
     callbacks = []

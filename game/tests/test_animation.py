@@ -27,6 +27,17 @@ def test_resolve_clip_idle_and_light_phases():
     assert resolve_clip(s.p1).clip == "stand_light_recovery"
 
 
+def test_jump_light_grounded_recovery_uses_land_clip():
+    s = initial_state(0)
+    s.p1.fsm = FSM.ATTACK
+    s.p1.move_id = "jump_light"
+    s.p1.y = 0
+    s.p1.state_frame = 14
+    assert resolve_clip(s.p1).clip == "jump_light_land_recovery"
+    s.p1.y = 20
+    assert resolve_clip(s.p1).clip == "jump_light_recovery"
+
+
 def test_resolve_clip_pulse_and_land():
     s = initial_state(0)
     s.p1.fsm = FSM.ATTACK

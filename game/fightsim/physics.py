@@ -17,6 +17,7 @@ from fightsim.config import (
     GRAVITY_DOWN,
     GRAVITY_UP,
     HITSTUN_GRAVITY_DOWN,
+    JUMP_COOLDOWN,
     KNOCKDOWN_PUSH_H,
     KNOCKDOWN_PUSH_W,
     LANDING_RECOVERY,
@@ -148,17 +149,20 @@ def land_if_needed(f: FighterState) -> str | None:
         f.vx = 0
         f.vy = 0
         f.move_id = ""
-        f.landing_lock = LANDING_RECOVERY
+        f.jump_lock = max(f.jump_lock, JUMP_COOLDOWN)
         return None
     if f.fsm == FSM.ATTACK and f.move_id == "jump_light":
-        f.fsm = FSM.IDLE
-        f.state_frame = 0
+        f.y = 0
         f.vx = 0
         f.vy = 0
-        f.move_id = ""
-        f.can_special_cancel = False
-        f.move_has_hit = False
-        f.landing_lock = LANDING_RECOVERY
+        f.jump_lock = max(f.jump_lock, JUMP_COOLDOWN)
+        if f.move_has_hit:
+            f.fsm = FSM.IDLE
+            f.state_frame = 0
+            f.move_id = ""
+            f.can_special_cancel = False
+            f.move_has_hit = False
+            f.landing_lock = LANDING_RECOVERY
         return None
     if f.fsm == FSM.HITSTUN and f.knockdown_pending:
         if f.bounce_count < MAX_BOUNCES and incoming_vy <= -BOUNCE_MIN_VY:

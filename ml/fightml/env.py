@@ -14,7 +14,7 @@ import numpy as np
 from gymnasium import spaces
 
 from fightsim.api import Simulator
-from fightsim.config import HEALTH_MAX
+from fightsim.config import HEALTH_MAX, ROUND_TIMER, SUBPIXEL
 from fightsim.dummy import DUMMY_STYLES, PERSONALITY_STYLES
 from fightsim.input import RawInput, SemanticAction, semantic_to_raw
 from fightsim.state import RoundState
@@ -25,7 +25,11 @@ from fightml.spawn import randomize_spawn
 DEFAULT_FRAMESKIP = 4
 DEFAULT_DAMAGE_COEF = 0.1
 DEFAULT_TIMEOUT_LEAD = 2000
+DEFAULT_TIMEOUT_WIN = 0.25
+DEFAULT_TIMEOUT_DRAW = -0.25
+DEFAULT_TIME_COST = 0.25
 DEFAULT_WHIFF_PENALTY = 0.02
+DEFAULT_WHIFF_RANGE_PX = 100
 DEFAULT_POOL_FRAC = 0.5
 
 
@@ -78,8 +82,10 @@ def terminal_bonus(
     p2_health: int,
     timed_out: bool,
     timeout_lead: int = DEFAULT_TIMEOUT_LEAD,
+    timeout_win: float = DEFAULT_TIMEOUT_WIN,
+    timeout_draw: float = DEFAULT_TIMEOUT_DRAW,
 ) -> float:
-    """KO uses ±1. Timeout needs a real health lead; cheap clock-outs score 0."""
+    """KO uses ±1. Timeout win is weaker than a KO; indecisive clock-outs are negative."""
     if not timed_out:
         if round_state is RoundState.P1_WIN:
             return 1.0
@@ -88,10 +94,10 @@ def terminal_bonus(
         return 0.0
     lead = int(p1_health) - int(p2_health)
     if lead >= int(timeout_lead):
-        return 0.5
+        return float(timeout_win)
     if lead <= -int(timeout_lead):
         return -1.0
-    return 0.0
+    return float(timeout_draw)
 
 
 class FightEnv(gym.Env):
@@ -109,7 +115,11 @@ class FightEnv(gym.Env):
         pool_frac: float = DEFAULT_POOL_FRAC,
         dummy_only: bool = False,
         timeout_lead: int = DEFAULT_TIMEOUT_LEAD,
+        timeout_win: float = DEFAULT_TIMEOUT_WIN,
+        timeout_draw: float = DEFAULT_TIMEOUT_DRAW,
+        time_cost: float = DEFAULT_TIME_COST,
         whiff_penalty: float = DEFAULT_WHIFF_PENALTY,
+        whiff_range_px: float = DEFAULT_WHIFF_RANGE_PX,
     ) -> None:
         super().__init__()
         self.sim = Simulator()
@@ -120,7 +130,11 @@ class FightEnv(gym.Env):
         self.pool_frac = float(pool_frac)
         self.dummy_only = bool(dummy_only)
         self.timeout_lead = int(timeout_lead)
+        self.timeout_win = float(timeout_win)
+        self.timeout_draw = float(timeout_draw)
+        self.time_cost = float(time_cost)
         self.whiff_penalty = float(whiff_penalty)
+        self.whiff_range_px = float(whiff_range_px)
         self._styles = _resolve_styles(dummy_style)
         self._p2_kind = f"dummy:{self._styles[0]}"
         self._opponent: DummyOpponent | PolicyOpponent = DummyOpponent(self._styles[0])
@@ -166,11 +180,18 @@ class FightEnv(gym.Env):
         self._pick_opponent(int(seed))
         return flatten_state(state), self._info(state, frames=0)
 
+    def _time_cost_per_step(self) -> float:
+        policy_steps = ROUND_TIMER / max(self.frameskip, 1)
+        if policy_steps <= 0:
+            return 0.0
+        return self.time_cost / policy_steps
+
     def step(self, action: int) -> tuple[np.ndarray, float, bool, bool, dict[str, Any]]:
         state = self.sim.get_state()
         p1_raw = action_to_raw(int(action), state.p1.facing)
         h1_before = state.p1.health
         h2_before = state.p2.health
+        gap_px = abs(state.p1.x - state.p2.x) / SUBPIXEL
 
         frames = 0
         whiffs = 0
@@ -190,7 +211,9 @@ class FightEnv(gym.Env):
         dealt = h2_before - state.p2.health
         taken = h1_before - state.p1.health
         reward = self.damage_coef * (dealt - taken) / HEALTH_MAX
-        reward -= self.whiff_penalty * whiffs
+        if gap_px < self.whiff_range_px:
+            reward -= self.whiff_penalty * whiffs
+        reward -= self._time_cost_per_step()
         terminated = state.round_state != RoundState.FIGHTING
         if terminated:
             if not timed_out:
@@ -201,6 +224,8 @@ class FightEnv(gym.Env):
                 state.p2.health,
                 timed_out,
                 self.timeout_lead,
+                self.timeout_win,
+                self.timeout_draw,
             )
         return flatten_state(state), float(reward), terminated, False, self._info(state, frames)
 
@@ -227,7 +252,11 @@ def make_fight_env(
     pool_frac: float = DEFAULT_POOL_FRAC,
     dummy_only: bool = False,
     timeout_lead: int = DEFAULT_TIMEOUT_LEAD,
+    timeout_win: float = DEFAULT_TIMEOUT_WIN,
+    timeout_draw: float = DEFAULT_TIMEOUT_DRAW,
+    time_cost: float = DEFAULT_TIME_COST,
     whiff_penalty: float = DEFAULT_WHIFF_PENALTY,
+    whiff_range_px: float = DEFAULT_WHIFF_RANGE_PX,
 ) -> Callable[[], Any]:
     """Thunk for DummyVecEnv. Wraps ActionMasker when sb3-contrib is installed."""
 
@@ -241,7 +270,11 @@ def make_fight_env(
             pool_frac=pool_frac,
             dummy_only=dummy_only,
             timeout_lead=timeout_lead,
+            timeout_win=timeout_win,
+            timeout_draw=timeout_draw,
+            time_cost=time_cost,
             whiff_penalty=whiff_penalty,
+            whiff_range_px=whiff_range_px,
         )
         try:
             from sb3_contrib.common.wrappers import ActionMasker

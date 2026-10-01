@@ -41,6 +41,7 @@ CLIPS: dict[str, dict[str, object]] = {
     "hitstun": {"files": _files("hitstun", 1), "loop": False},
     "hitstun_air": {"files": _files("hitstun_air", 1), "loop": False},
     "blockstun": {"files": _files("blockstun", 1), "loop": False},
+    "jump_light_land_recovery": {"files": _files("jump_light_land_recovery", 1), "loop": False},
     "knockdown": {"files": _files("knockdown", 2), "loop": False},
     "wakeup": {"files": _files("wakeup", 1), "loop": False},
     "dead": {"files": _files("dead", 1), "loop": False},
@@ -110,6 +111,8 @@ def _attack_clip(f: FighterState) -> str:
     else:
         phase = "recovery"
     name = f"{f.move_id}_{phase}"
+    if f.move_id == "jump_light" and phase == "recovery" and not airborne(f):
+        return "jump_light_land_recovery"
     if name not in CLIPS:
         return "idle"
     return name

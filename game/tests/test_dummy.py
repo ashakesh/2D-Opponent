@@ -1,5 +1,5 @@
 from fightsim.api import Simulator
-from fightsim.config import PULSE_COST, STAGE_WIDTH, START_P1_X, START_P2_X, SUBPIXEL, THROW_RANGE
+from fightsim.config import PULSE_COST, SPECIAL_COST, STAGE_WIDTH, START_P1_X, START_P2_X, SUBPIXEL, THROW_RANGE
 from fightsim.dummy import DUMMY_STYLES, dummy_input, mix_rng_from_seed, pick_mix_style
 from fightsim.input import RawInput, SemanticAction, semantic_to_raw
 from fightsim.state import Projectile
@@ -166,3 +166,33 @@ def test_zoner_pulses_when_too_close():
     assert inp.command_special_3 is True
     assert inp.command_special_1 is False
     assert inp.command_special_2 is False
+
+
+def test_grappler_jumps_to_air_to_air():
+    from fightsim.state import FSM
+
+    sim = Simulator()
+    sim.reset(0)
+    st = sim.get_state()
+    st.p1.fsm = FSM.JUMP
+    st.p1.y = 40 * SUBPIXEL
+    st.p2.x = st.p1.x + 100 * SUBPIXEL
+    st.p2.meter = 0
+    inp = dummy_input(st, 2, "grappler")
+    assert inp.up is True
+    assert inp.command_special_2 is False
+
+
+def test_aggressive_dp_anti_air_in_range_not_jump():
+    from fightsim.state import FSM
+
+    sim = Simulator()
+    sim.reset(0)
+    st = sim.get_state()
+    st.p1.fsm = FSM.JUMP
+    st.p1.y = 40 * SUBPIXEL
+    st.p2.x = st.p1.x + 80 * SUBPIXEL
+    st.p2.meter = SPECIAL_COST
+    inp = dummy_input(st, 2, "aggressive")
+    assert inp.command_special_2 is True
+    assert inp.up is False

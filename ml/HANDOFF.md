@@ -88,7 +88,7 @@ Facing-relative **block = hold back**, not a button.
 | A | Light (stand / crouch+A low / jump+A overhead) |
 | B | Heavy |
 | C | Throw |
-| 236+A | Fireball (meter; chips on block) |
+| 236+A | Fireball (meter; 1800 + chip; long commitment) |
 | 623+A | DP / uppercut (meter, some invuln, highest launch) |
 | 214+A | Pulse (cheaper meter; shove; **erases fireballs**) |
 | 66 / 44 | Forward / back dash (strict tap window) |
@@ -147,7 +147,7 @@ Your package:
 pip install -e "./game" -e "./ml"
 ```
 
-`fightml` has `env.py` / `train.py` / `eval.py`. Current run is **mix3**: MaskablePPO, 50/50 dummy personalities vs `ml/runs/pool/`, timeout lead 2000 (cheap clock-out = 0), whiff penalty, action masks. Eval plays the zip as **P2** (`--p1` dummy/human). Artifacts belong in **`ml/runs/` only** (relative `runs/...` flags resolve there regardless of cwd). Next: PFSP win-rate sampling, then raw-input with command flags off.
+`fightml` has `env.py` / `train.py` / `eval.py`. Current run is **mix4**: MaskablePPO vs personality dummies only (`--dummy-only`, 30e6 steps), timeout win +0.25 / indecisive timeout −0.25, a small per-step time cost, and a range-gated whiff penalty. Checkpoints go to `ml/runs/pool4/` but are **not** sampled as P2 this generation. Eval plays the zip as **P2** (`--p1` dummy/human). Artifacts belong in **`ml/runs/` only** (relative `runs/...` flags resolve there regardless of cwd). Next: PFSP win-rate sampling, then raw-input with command flags off.
 
 ---
 
@@ -186,8 +186,8 @@ Keep this in mind when designing obs/rewards; do not flatten it into a “creati
 - **Heavy** — slower, more hitstun; on-hit **gatling from lights**; punish tool.
 - **Jump-in** — **overhead** (stand-block only), long down-forward kick; hitting airborne or jump-in connect **blows back with knockdown**. Landing has a short recovery so blocked jump-ins are punishable.
 - **Throw** — beats block; **launches backward** (mid-arc) then knockdown / bounce. Short recovery **on hit** so you can jab a wall bounce.
-- **Fireball** — spacing; costs 250 meter; **chips on block**.
-- **DP** — anti-air / reversal, invuln on startup, **highest damage and launch arc**, long recovery if whiffed, short on hit (juggle into fireball).
+- **Fireball** — anti-camp clock; costs 250 meter; **1800** raw / chips on block (`2/5`); long startup (20f) and recovery (28f). Jump or pulse it; do not throw it in DP range.
+- **DP** — anti-air / reversal, invuln on startup, **highest launch arc**, long recovery if whiffed, short on hit (juggle into fireball). 1500 damage — less than a raw fireball, much faster.
 - **Pulse** — 214+A, 150 meter; almost no damage; shoves; **erases incoming fireballs**. Not a launch.
 - **Meter** starts at one fireball/DP (250 / 1000). Defender gains more meter for a successful block than the attacker. Hits weighted: special/throw > heavy > light > pulse.
 - **Cancels (combo routes, not a combo list):** on-hit special cancel from normals; on-hit **light → heavy** only. Launches + **one** floor/wall bounce give a juggle window. Events: `combo_ended` with `length`. Bin 2 / 3–4 / 5+ in the wrapper if you want.

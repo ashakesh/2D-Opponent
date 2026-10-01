@@ -5,7 +5,7 @@ Random choices consume GameState.rng (PCG32) so a seed + style is reproducible.
 
 from __future__ import annotations
 
-from fightsim.config import PULSE_COST, STAGE_WIDTH, SUBPIXEL, THROW_RANGE
+from fightsim.config import PULSE_COST, SPECIAL_COST, STAGE_WIDTH, SUBPIXEL, THROW_RANGE
 from fightsim.input import RawInput, SemanticAction, semantic_to_raw
 from fightsim.physics import airborne
 from fightsim.rng import RngState, rand_u32, seed_rng
@@ -20,6 +20,10 @@ _CORNER_MARGIN = 72 * SUBPIXEL
 # Fireball is 6px/f; jump clears the ball in a few frames. Jump only when a
 # dodge would actually beat the hit, not when the projectile is still mid-screen.
 _FIREBALL_DODGE_RANGE = 120 * SUBPIXEL
+_DP_ANTI_AIR_RANGE = 100 * SUBPIXEL
+_AIR_TO_AIR_MIN = 70 * SUBPIXEL
+_AIR_TO_AIR_MAX = 140 * SUBPIXEL
+_MOBILE_FAR = 160 * SUBPIXEL
 
 KEEP_STYLES: tuple[str, ...] = ("idle", "block", "mash", "crouch_block")
 PERSONALITY_STYLES: tuple[str, ...] = (
@@ -109,8 +113,9 @@ def dummy_input(state: GameState, pid: int, style: str) -> RawInput:
 
 def _aggressive(state: GameState, me, other) -> RawInput:
     gap = _gap(me, other)
-    if airborne(other) and me.meter >= 250 and _roll(state, 100) < 25:
-        return _special(2)
+    aa = _anti_air_dp(state, me, other)
+    if aa is not None:
+        return aa
     if gap > 180 * SUBPIXEL and me.meter >= 250 and me.fsm == FSM.IDLE and _roll(state, 100) < 12:
         return _special(1)
     if gap < 50 * SUBPIXEL and _roll(state, 100) < 20:
@@ -145,15 +150,38 @@ def _dodge_fireball(state: GameState, me) -> RawInput | None:
     return None
 
 
+def _anti_air_dp(state: GameState, me, other) -> RawInput | None:
+    if airborne(me) or not airborne(other):
+        return None
+    if me.meter < SPECIAL_COST:
+        return None
+    if _gap(me, other) > _DP_ANTI_AIR_RANGE:
+        return None
+    return _special(2)
+
+
+def _air_to_air(state: GameState, me, other) -> RawInput | None:
+    gap = _gap(me, other)
+    if airborne(me) and airborne(other):
+        return RawInput(a=True)
+    if airborne(other) and not airborne(me) and _AIR_TO_AIR_MIN <= gap <= _AIR_TO_AIR_MAX:
+        t = _toward(me)
+        return RawInput(up=True, left=t.left, right=t.right)
+    return None
+
+
 def _near_corner(me) -> bool:
     return me.x < _CORNER_MARGIN or me.x > STAGE_WIDTH - _CORNER_MARGIN
 
 
 def _guard_reactions(state: GameState, me, other) -> RawInput | None:
-    """Shared defensive/zoner answers. Jump close fireballs; throw/heavy/pulse only in range."""
+    """Shared defensive/zoner answers. Jump close fireballs; DP anti-air; throw/heavy/pulse in range."""
     dodged = _dodge_fireball(state, me)
     if dodged is not None:
         return dodged
+    aa = _anti_air_dp(state, me, other)
+    if aa is not None:
+        return aa
     gap = _gap(me, other)
     if gap <= THROW_RANGE + 8 * SUBPIXEL:
         if _roll(state, 100) < 55:
@@ -178,8 +206,9 @@ def _defensive(state: GameState, me, other) -> RawInput:
 
 def _rushdown(state: GameState, me, other) -> RawInput:
     gap = _gap(me, other)
-    if gap < 70 * SUBPIXEL and me.meter >= 250 and _roll(state, 100) < 10:
-        return _special(2)
+    aa = _anti_air_dp(state, me, other)
+    if aa is not None:
+        return aa
     if gap > 90 * SUBPIXEL:
         t = _toward(me)
         if _roll(state, 100) < 30:
@@ -201,8 +230,10 @@ def _rushdown(state: GameState, me, other) -> RawInput:
 
 def _mobile(state: GameState, me, other) -> RawInput:
     gap = _gap(me, other)
+    far = gap > _MOBILE_FAR
     if airborne(me):
-        if _roll(state, 100) < 55:
+        kick_p = 12 if far else 55
+        if _roll(state, 100) < kick_p:
             return RawInput(a=True)
         return RawInput()
     if gap < 70 * SUBPIXEL and me.meter >= 250 and _roll(state, 100) < 12:
@@ -210,17 +241,19 @@ def _mobile(state: GameState, me, other) -> RawInput:
     if gap > 200 * SUBPIXEL and me.meter >= 250 and _roll(state, 100) < 18:
         return _special(1)
     r = _roll(state, 100)
-    if r < 14:
+    hop = 6 if far else 14
+    if r < hop:
         return RawInput(up=True, right=_toward(me).right, left=_toward(me).left)
-    if r < 24:
+    if r < hop + 10:
         return _away(me)
-    if r < 36:
+    if r < hop + 22:
         return _toward(me)
-    if r < 50:
+    if r < hop + 36:
         return RawInput(a=True)
-    if r < 58:
+    jump_p = hop + 40 if not far else hop + 38
+    if r < jump_p:
         return RawInput(up=True)
-    return RawInput() if r < 70 else _toward(me)
+    return RawInput() if r < jump_p + 12 else _toward(me)
 
 
 def _zoner(state: GameState, me, other) -> RawInput:
@@ -242,6 +275,12 @@ def _grappler(state: GameState, me, other) -> RawInput:
     dodged = _dodge_fireball(state, me)
     if dodged is not None:
         return dodged
+    contest = _air_to_air(state, me, other)
+    if contest is not None:
+        return contest
+    aa = _anti_air_dp(state, me, other)
+    if aa is not None:
+        return aa
     gap = _gap(me, other)
     if gap <= THROW_RANGE + 4 * SUBPIXEL and _roll(state, 100) < 45:
         return RawInput(c=True)

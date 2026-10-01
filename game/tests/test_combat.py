@@ -9,7 +9,7 @@ from fightsim.config import (
     SUBPIXEL,
 )
 from fightsim.input import RawInput, SemanticAction, semantic_to_raw
-from fightsim.moves import CROUCH_LIGHT, DP, PULSE, PROJ_DAMAGE, STAND_LIGHT, THROW
+from fightsim.moves import CROUCH_LIGHT, DP, PULSE, PROJ_DAMAGE, STAND_HEAVY, STAND_LIGHT, THROW
 from fightsim.state import FSM
 
 
@@ -43,19 +43,23 @@ def test_light_deals_exact_damage():
     assert st.p1.health == HEALTH_MAX
 
 
-def test_holding_back_blocks_standing_light():
+def test_holding_back_blocks_crouch_heavy():
     sim = Simulator()
     sim.reset(0)
-    _close(sim, 32)
+    _close(sim, 36)
     block = semantic_to_raw(SemanticAction.BLOCK, -1)
-    # Crouch+back so P2 does not walk out of range.
     p2 = RawInput(left=block.left, right=block.right, down=True)
-    sim.step(RawInput(a=True), p2)
-    _wait(sim, 18, p2=p2)
+    saw_blockstun = False
+    sim.step(RawInput(b=True), p2)
+    for _ in range(24):
+        st = sim.get_state()
+        if st.p2.fsm == FSM.BLOCKSTUN:
+            saw_blockstun = True
+        sim.step(RawInput(), p2)
     st = sim.get_state()
     assert st.p2.health == HEALTH_MAX
-    # Should have been in blockstun at some point; after recovery they may be idle.
-    assert st.p2.fsm.value in ("blockstun", "idle", "crouch")
+    assert st.p2.fsm == FSM.CROUCH
+    assert saw_blockstun is False
 
 
 def test_throw_beats_standing_block():
@@ -75,7 +79,7 @@ def test_command_fireball_spawns_projectile():
     sim.reset(0)
     sim.step(RawInput(command_special_1=True), RawInput())
     found = False
-    for _ in range(24):
+    for _ in range(28):
         sim.step(RawInput(), RawInput())
         if sim.get_state().projectiles:
             found = True
@@ -102,6 +106,21 @@ def test_fireball_can_hit():
             hit = True
             break
     assert hit
+    assert sim.get_state().p2.health == HEALTH_MAX - PROJ_DAMAGE
+
+
+def test_point_blank_dp_beats_fireball():
+    sim = Simulator()
+    sim.reset(0)
+    _close(sim, 40)
+    st = sim.get_state()
+    st.p1.meter = 1000
+    st.p2.meter = 1000
+    sim.step(RawInput(command_special_1=True), RawInput(command_special_2=True))
+    _wait(sim, 30)
+    st = sim.get_state()
+    assert st.p1.health == HEALTH_MAX - DP.damage
+    assert st.p2.health == HEALTH_MAX
 
 
 def test_throw_launches_backward():
@@ -316,10 +335,119 @@ def test_defender_gains_more_meter_on_block():
     sim.get_state().p2.meter = METER_START
     block = semantic_to_raw(SemanticAction.BLOCK, -1)
     p2 = RawInput(left=block.left, right=block.right, down=True)
-    sim.step(RawInput(a=True), p2)
-    _wait(sim, 18, p2=p2)
+    sim.step(RawInput(b=True), p2)
+    _wait(sim, 24, p2=p2)
     st = sim.get_state()
     assert st.p2.meter > st.p1.meter
     assert st.p2.meter > METER_START
     assert st.p1.meter == METER_START
+
+
+def test_stand_light_misses_crouch_heavy_still_hits():
+    sim = Simulator()
+    sim.reset(0)
+    _close(sim, 36)
+    sim.step(RawInput(a=True), RawInput(down=True))
+    _wait(sim, 20, p2=RawInput(down=True))
+    assert sim.get_state().p2.health == HEALTH_MAX
+
+    sim = Simulator()
+    sim.reset(0)
+    _close(sim, 36)
+    sim.step(RawInput(b=True), RawInput(down=True))
+    _wait(sim, 24, p2=RawInput(down=True))
+    assert sim.get_state().p2.health == HEALTH_MAX - STAND_HEAVY.damage
+
+
+def test_fireball_hits_crouch():
+    sim = Simulator()
+    sim.reset(0)
+    st = sim.get_state()
+    st.p1.x = 200 * SUBPIXEL
+    st.p2.x = 420 * SUBPIXEL
+    st.p1.facing = 1
+    st.p2.facing = -1
+    st.p1.meter = 1000
+    sim.step(RawInput(command_special_1=True), RawInput(down=True))
+    hit = False
+    for _ in range(90):
+        sim.step(RawInput(), RawInput(down=True))
+        if sim.get_state().p2.health < HEALTH_MAX:
+            hit = True
+            break
+    assert hit
+
+
+def test_blocked_heavy_pushes_attacker_farther_than_light():
+    from fightsim.combat import block_push_speeds
+    from fightsim.moves import STAND_HEAVY
+
+    light_atk, _ = block_push_speeds(STAND_LIGHT, STAND_LIGHT.damage)
+    heavy_atk, _ = block_push_speeds(STAND_HEAVY, STAND_HEAVY.damage)
+    pulse_atk, pulse_dfn = block_push_speeds(PULSE, PULSE.damage)
+    assert heavy_atk > light_atk
+    assert heavy_atk < pulse_dfn
+    assert light_atk < pulse_atk
+
+    def attacker_slide(button: RawInput, wait: int) -> int:
+        sim = Simulator()
+        sim.reset(0)
+        _close(sim, 36)
+        if button.command_special_3:
+            sim.get_state().p1.meter = 1000
+        x0 = sim.get_state().p1.x
+        block = semantic_to_raw(SemanticAction.BLOCK, -1)
+        p2 = RawInput(left=block.left, right=block.right, down=True)
+        sim.step(button, p2)
+        _wait(sim, wait, p2=p2)
+        return x0 - sim.get_state().p1.x
+
+    light_slide = attacker_slide(RawInput(a=True), 16)
+    heavy_slide = attacker_slide(RawInput(b=True), 20)
+    pulse_slide = attacker_slide(RawInput(command_special_3=True), 16)
+    # Standing light misses crouch, so no attacker push.
+    assert light_slide < heavy_slide
+    assert heavy_slide < pulse_slide
+
+
+def test_hop_allows_jab_but_not_instant_rejump():
+    sim = Simulator()
+    sim.reset(0)
+    sim.step(RawInput(up=True), RawInput())
+    for _ in range(80):
+        sim.step(RawInput(), RawInput())
+        st = sim.get_state()
+        if st.p1.y == 0 and st.p1.fsm != FSM.JUMP:
+            break
+    st = sim.get_state()
+    assert st.p1.y == 0
+    assert st.p1.jump_lock > 0
+    sim.step(RawInput(up=True), RawInput())
+    assert sim.get_state().p1.y == 0
+    assert sim.get_state().p1.fsm != FSM.JUMP
+    sim.step(RawInput(a=True), RawInput())
+    assert sim.get_state().p1.move_id == "stand_light"
+
+
+def test_whiff_jump_light_recovers_on_ground():
+    from fightsim.animation import resolve_clip
+    from fightsim.moves import JUMP_LIGHT
+
+    sim = Simulator()
+    sim.reset(0)
+    st = sim.get_state()
+    st.p1.x = 200 * SUBPIXEL
+    st.p2.x = 700 * SUBPIXEL
+    st.p1.y = 6 * SUBPIXEL
+    st.p1.vy = -8 * SUBPIXEL
+    st.p1.fsm = FSM.ATTACK
+    st.p1.move_id = "jump_light"
+    st.p1.state_frame = JUMP_LIGHT.startup + JUMP_LIGHT.active
+    st.p1.move_has_hit = False
+    sim.step(RawInput(), RawInput())
+    st = sim.get_state()
+    assert st.p1.y == 0
+    assert st.p1.fsm == FSM.ATTACK
+    assert st.p1.move_id == "jump_light"
+    assert resolve_clip(st.p1).clip == "jump_light_land_recovery"
 

@@ -1,10 +1,11 @@
 from fightsim.api import Simulator
-from fightsim.collision import any_overlap, character_box, hurtboxes
+from fightsim.collision import any_overlap, character_box, hitbox_from_local, hurtboxes, projectile_box
 from fightsim.combat import attack_boxes
-from fightsim.config import CHAR_BOX_H, CHAR_BOX_W, SUBPIXEL
+from fightsim.config import CHAR_BOX_H, CHAR_BOX_W, CROUCH_PUSH_H, SUBPIXEL
 from fightsim.input import RawInput
+from fightsim.moves import PROJ_H, PROJ_W, PROJ_Y, STAND_HEAVY, STAND_LIGHT
 from fightsim.physics import update_body_size
-from fightsim.state import FSM, initial_state
+from fightsim.state import FSM, Projectile, initial_state
 
 
 def test_character_box_size_is_fixed_stand_rect():
@@ -37,10 +38,37 @@ def test_character_box_ignores_crouch_air_knockdown_push():
     assert f.push_h != CHAR_BOX_H
 
 
-def test_hurtboxes_is_one_rect_today():
+def test_standing_hurtboxes_include_head_above_character_box():
     s = initial_state(0)
     boxes = hurtboxes(s.p1)
-    assert len(boxes) == 1
+    assert len(boxes) == 2
+    body, head = boxes
+    assert head[3] > CHAR_BOX_H
+    assert head[1] >= CHAR_BOX_H
+    assert head[3] > body[3]
+
+
+def test_crouch_hurtboxes_include_lower_head():
+    s = initial_state(0)
+    f = s.p1
+    stand_head_top = hurtboxes(f)[1][3]
+    f.fsm = FSM.CROUCH
+    update_body_size(f)
+    boxes = hurtboxes(f)
+    assert len(boxes) == 2
+    body, head = boxes
+    assert head[1] >= CROUCH_PUSH_H
+    assert head[1] <= CROUCH_PUSH_H + SUBPIXEL
+    assert head[3] > CROUCH_PUSH_H
+    assert head[3] < stand_head_top
+
+
+def test_knockdown_hurtbox_is_body_only():
+    s = initial_state(0)
+    f = s.p1
+    f.fsm = FSM.KNOCKDOWN
+    update_body_size(f)
+    assert len(hurtboxes(f)) == 1
 
 
 def test_idle_attack_boxes_empty():
@@ -73,3 +101,38 @@ def test_any_overlap_true_false():
     assert any_overlap(a, b)
     assert not any_overlap(a, c)
     assert not any_overlap([], b)
+
+
+def test_stand_light_box_misses_crouch_hurt_heavy_and_fireball_hit():
+    s = initial_state(0)
+    p1, p2 = s.p1, s.p2
+    p1.x = 400 * SUBPIXEL
+    p2.x = 440 * SUBPIXEL
+    p1.facing = 1
+    p2.facing = -1
+    p2.fsm = FSM.CROUCH
+    update_body_size(p2)
+    crouch = hurtboxes(p2)
+    hb = STAND_LIGHT.hitbox
+    light = hitbox_from_local(p1, hb.offset_x, hb.offset_y, hb.w, hb.h)
+    assert not any_overlap([light], crouch)
+    hh = STAND_HEAVY.hitbox
+    heavy = hitbox_from_local(p1, hh.offset_x, hh.offset_y, hh.w, hh.h)
+    assert any_overlap([heavy], crouch)
+    proj = Projectile(
+        owner=1,
+        x=p2.x,
+        y=PROJ_Y,
+        vx=0,
+        vy=0,
+        w=PROJ_W,
+        h=PROJ_H,
+        damage=0,
+        hitstun=0,
+        blockstun=0,
+        hitstop=0,
+        knockback_x=0,
+        knockback_y=0,
+        lifetime=10,
+    )
+    assert any_overlap([projectile_box(proj)], crouch)

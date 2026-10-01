@@ -31,7 +31,9 @@ python -m fightsim.play --box yes            # debug push/hurt/hit rects (defaul
 python -m fightsim.play --box maybe          # PNG sprites plus live box outlines
 ```
 
-`--box yes` (default) draws the debug rectangles. `--box no` blits `art/` using a feet pivot — PNGs only, plus HUD, with no character-box overlay. `--box maybe` uses the same sprites as `--box no` and overlays push / hurt / hit / projectile outlines.
+`--box yes` (default) draws the debug rectangles. `--box no` blits `art/` using a feet pivot — PNGs only, plus HUD, with no character-box overlay. `--box maybe` uses the same sprites as `--box no` and overlays push / hurt / hit / projectile outlines (including head hurtboxes).
+
+Stand light is a high that misses crouch (including the crouch head). Fireballs still hit a crouch: high damage and chip, long startup/recovery — an anti-camp clock, not a close poke. Blocking no longer swaps to a blockstun pose; the defender keeps crouch/stand and both fighters slide by an amount that scales with the strike.
 
 P1: `A`/`D` walk, `W` jump, `S` crouch, `J` light, `K` heavy, `L` throw.
 Motions: `236+J` fireball, `623+J` DP, `214+J` pulse (numpad, facing-relative).
