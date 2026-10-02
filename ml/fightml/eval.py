@@ -11,7 +11,7 @@ from dataclasses import dataclass
 from typing import Any, Callable
 
 from fightsim.api import Simulator
-from fightsim.config import FPS, STAGE_WIDTH_PX
+from fightsim.config import FPS
 from fightsim.dummy import dummy_input
 from fightsim.input import RawInput
 from fightsim.state import RoundState
@@ -85,24 +85,6 @@ def load_predict(path: str, deterministic: bool = True) -> PredictFn:
         return int(action)
 
     return predict
-
-
-def _p1_from_keys(keys: Any) -> RawInput:
-    """Same mapping as fightsim.play P1 (human is P1; the agent is P2)."""
-    import pygame
-
-    return RawInput(
-        left=bool(keys[pygame.K_a]),
-        right=bool(keys[pygame.K_d]),
-        up=bool(keys[pygame.K_w]),
-        down=bool(keys[pygame.K_s]),
-        a=bool(keys[pygame.K_j]),
-        b=bool(keys[pygame.K_k]),
-        c=bool(keys[pygame.K_l]),
-        command_special_1=bool(keys[pygame.K_i]),
-        command_special_2=bool(keys[pygame.K_o]),
-        command_special_3=bool(keys[pygame.K_p]),
-    )
 
 
 def pick_style(p1: str, rng) -> str:
@@ -249,26 +231,24 @@ def watch(
     frameskip: int,
     seed: int,
     episodes: int = 0,
+    box: str = "yes",
+    native: bool = False,
+    fullscreen: bool = False,
 ) -> list[EpisodeResult]:
-    try:
-        import pygame
-    except ImportError:
-        print(
-            "pygame is required to watch or play vs the agent. "
-            'Install with: pip install -e "../game[play]"',
-            file=sys.stderr,
-        )
-        sys.exit(1)
-
     from fightsim.render import render_state
+    from fightsim.view import Display, p1_from_keys, require_pygame
+
+    require_pygame(
+        "pygame is required to watch or play vs the agent. "
+        'Install with: pip install -e "../game[play]"'
+    )
 
     human = p1 == "human"
-    pygame.init()
-    pygame.font.init()
-    screen = pygame.display.set_mode((STAGE_WIDTH_PX, 400))
-    pygame.display.set_caption(f"fightml eval — P1 {p1} vs P2 agent")
-    clock = pygame.time.Clock()
-    font = pygame.font.Font(None, 20)
+    display = Display(
+        caption=f"fightml eval — P1 {p1} vs P2 agent",
+        native=native,
+        fullscreen=fullscreen,
+    )
 
     if human:
         print(
@@ -290,23 +270,22 @@ def watch(
     running = True
 
     while running:
-        for event in pygame.event.get():
-            if event.type == pygame.QUIT:
-                running = False
-            elif event.type == pygame.KEYDOWN and event.key == pygame.K_ESCAPE:
-                running = False
-            elif event.type == pygame.KEYDOWN and event.key == pygame.K_r:
-                round_seed += 1
-                style = "human" if human else pick_style(p1, rng)
-                sim.reset(round_seed)
-                policy.reset()
-                over_frames = 0
-                recorded = False
+        frame = display.pump()
+        if frame.quit:
+            running = False
+            continue
+        if frame.reset_pressed:
+            round_seed += 1
+            style = "human" if human else pick_style(p1, rng)
+            sim.reset(round_seed)
+            policy.reset()
+            over_frames = 0
+            recorded = False
 
         state = sim.get_state()
-        keys = pygame.key.get_pressed()
+        keys = frame.keys
         if state.round_state == RoundState.FIGHTING:
-            p1_raw = _p1_from_keys(keys) if human else dummy_input(state, 1, style)
+            p1_raw = p1_from_keys(keys) if human else dummy_input(state, 1, style)
             sim.step(p1_raw, policy.raw(state))
             recorded = False
             over_frames = 0
@@ -335,13 +314,13 @@ def watch(
                     over_frames = 0
                     recorded = False
 
-        render_state(sim.get_state(), screen, p2_label="agent")
-        overlay = f"P1 {style}   P2 agent   skip={frameskip}   R reset"
-        screen.blit(font.render(overlay, True, (200, 200, 200)), (20, 380))
-        pygame.display.flip()
-        clock.tick(FPS)
+        render_state(sim.get_state(), display.logical, p2_label="agent", box=box)
+        overlay = None
+        if box != "no":
+            overlay = f"P1 {style}   P2 agent   skip={frameskip}   R reset"
+        display.present(overlay)
 
-    pygame.quit()
+    display.close()
     return finished
 
 
@@ -383,6 +362,10 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         action="store_true",
         help="Sample from the policy instead of greedy actions.",
     )
+    parser.add_argument("--box", default="yes", choices=("yes", "no", "maybe"))
+    from fightsim.view import add_window_args
+
+    add_window_args(parser)
     return parser.parse_args(argv)
 
 
@@ -404,7 +387,16 @@ def main(argv: list[str] | None = None) -> None:
         return
 
     predict = load_predict(args.model, deterministic=not args.stochastic)
-    finished = watch(predict, args.p1, args.frameskip, args.seed, episodes=args.episodes)
+    finished = watch(
+        predict,
+        args.p1,
+        args.frameskip,
+        args.seed,
+        episodes=args.episodes,
+        box=args.box,
+        native=args.native,
+        fullscreen=args.fullscreen,
+    )
     if finished:
         print(format_summary(_summarize(finished, args.p1)))
 

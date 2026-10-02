@@ -67,6 +67,12 @@ def test_eval_cli_defaults_not_headless():
     args = parse_args(["ckpt.zip", "--p1", "human", "--headless"])
     assert args.p1 == "human"
     assert args.headless is True
+    boxed = parse_args(["runs/ppo_p1", "--box", "no", "--native"])
+    assert boxed.box == "no"
+    assert boxed.native is True
+    assert boxed.fullscreen is False
+    with pytest.raises(SystemExit):
+        parse_args(["runs/ppo_p1", "--native", "--fullscreen"])
 
 
 def test_run_episode_both_orientations():

@@ -241,7 +241,6 @@ def advance_stun(f: FighterState, events: list[CombatEvent], pid: int) -> None:
         f.invuln -= 1
 
     if f.fsm == FSM.DEAD:
-        f.vx = 0
         return
 
     if f.fsm == FSM.HITSTUN:
@@ -315,7 +314,6 @@ def maybe_die(f: FighterState) -> None:
     if f.health <= 0 and f.fsm != FSM.DEAD:
         f.health = 0
         f.fsm = FSM.DEAD
-        f.vx = 0
         f.move_id = ""
 
 

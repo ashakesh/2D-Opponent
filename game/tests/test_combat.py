@@ -10,7 +10,7 @@ from fightsim.config import (
 )
 from fightsim.input import RawInput, SemanticAction, semantic_to_raw
 from fightsim.moves import CROUCH_LIGHT, DP, PULSE, PROJ_DAMAGE, STAND_HEAVY, STAND_LIGHT, THROW
-from fightsim.state import FSM
+from fightsim.state import FSM, RoundState
 
 
 def _close(sim: Simulator, gap_px: int = 36) -> None:
@@ -450,4 +450,74 @@ def test_whiff_jump_light_recovers_on_ground():
     assert st.p1.fsm == FSM.ATTACK
     assert st.p1.move_id == "jump_light"
     assert resolve_clip(st.p1).clip == "jump_light_land_recovery"
+
+
+def test_ko_keeps_launch_and_settles_dead_on_ground():
+    sim = Simulator()
+    sim.reset(0)
+    _close(sim, 28)
+    sim.get_state().p2.health = 100
+    sim.step(RawInput(c=True), RawInput())
+    ended = 0
+    launched = False
+    for _ in range(80):
+        st = sim.get_state()
+        ended += sum(1 for e in st.last_events if e.kind == "round_end")
+        if st.p2.fsm == FSM.DEAD and (st.p2.y > 0 or st.p2.vx != 0 or st.p2.vy != 0):
+            launched = True
+        sim.step(RawInput(a=True), RawInput(a=True))
+    st = sim.get_state()
+    assert st.round_state == RoundState.P1_WIN
+    assert launched
+    assert st.p2.fsm == FSM.DEAD
+    assert st.p2.y == 0
+    assert st.p2.vx == 0
+    assert st.p2.vy == 0
+    assert st.p1.fsm == FSM.IDLE
+    assert st.p1.y == 0
+    assert ended == 1
+
+
+def test_grounded_winner_cancels_to_idle_after_round():
+    sim = Simulator()
+    sim.reset(0)
+    _close(sim, 36)
+    sim.get_state().p2.health = 1
+    sim.step(RawInput(a=True), RawInput())
+    for _ in range(20):
+        st = sim.get_state()
+        if st.round_state != RoundState.FIGHTING:
+            break
+        sim.step(RawInput(), RawInput())
+    st = sim.get_state()
+    assert st.round_state == RoundState.P1_WIN
+    assert st.p2.fsm == FSM.DEAD
+    sim.step(RawInput(a=True), RawInput(b=True))
+    st = sim.get_state()
+    assert st.p1.fsm == FSM.IDLE
+    assert st.p1.move_id == ""
+    assert st.p2.fsm == FSM.DEAD
+
+
+def test_airborne_winner_lands_idle_after_ko():
+    sim = Simulator()
+    sim.reset(0)
+    _close(sim, 40)
+    st = sim.get_state()
+    st.p2.health = 1
+    st.p1.y = 24 * SUBPIXEL
+    st.p1.vy = 4 * SUBPIXEL
+    st.p1.fsm = FSM.JUMP
+    sim.step(RawInput(a=True), RawInput())
+    for _ in range(90):
+        sim.step(RawInput(up=True, a=True), RawInput())
+        st = sim.get_state()
+        if st.round_state != RoundState.FIGHTING and st.p1.y == 0 and st.p2.y == 0:
+            break
+    st = sim.get_state()
+    assert st.round_state == RoundState.P1_WIN
+    assert st.p1.fsm == FSM.IDLE
+    assert st.p1.y == 0
+    assert st.p2.fsm == FSM.DEAD
+    assert st.p2.y == 0
 

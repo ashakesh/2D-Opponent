@@ -23,6 +23,7 @@ from fightsim.physics import (
     clamp_to_stage,
     land_if_needed,
     resolve_push,
+    settle_living_if_grounded,
     update_body_size,
 )
 from fightsim.state import FSM, GameState, RoundState
@@ -34,6 +35,7 @@ def step_state(state: GameState, p1_in: RawInput, p2_in: RawInput) -> tuple[Game
     s.frame += 1
 
     if s.round_state != RoundState.FIGHTING:
+        _step_post_round(s, events)
         s.last_events = events
         return s, events
 
@@ -52,19 +54,7 @@ def step_state(state: GameState, p1_in: RawInput, p2_in: RawInput) -> tuple[Game
     try_normals_and_move(s.p1, p1_in, events, 1)
     try_normals_and_move(s.p2, p2_in, events, 2)
 
-    apply_gravity_and_integrate(s.p1)
-    apply_gravity_and_integrate(s.p2)
-    for pid, f in ((1, s.p1), (2, s.p2)):
-        kind = land_if_needed(f)
-        if kind == "bounce":
-            events.append(CombatEvent(kind="bounce", defender=pid, data={"surface": "floor"}))
-    update_body_size(s.p1)
-    update_body_size(s.p2)
-    for pid, f in ((1, s.p1), (2, s.p2)):
-        kind = clamp_to_stage(f)
-        if kind == "wall":
-            events.append(CombatEvent(kind="bounce", defender=pid, data={"surface": "wall"}))
-    resolve_push(s)
+    _run_physics(s, events)
 
     b1, c1 = block_flags(s.p1, p1_in)
     b2, c2 = block_flags(s.p2, p2_in)
@@ -102,7 +92,52 @@ def step_state(state: GameState, p1_in: RawInput, p2_in: RawInput) -> tuple[Game
     return s, events
 
 
+def _dec_locks(f) -> None:
+    if f.landing_lock > 0:
+        f.landing_lock -= 1
+    if f.jump_lock > 0:
+        f.jump_lock -= 1
+    if f.invuln > 0:
+        f.invuln -= 1
+
+
+def _run_physics(s: GameState, events: list[CombatEvent]) -> None:
+    apply_gravity_and_integrate(s.p1)
+    apply_gravity_and_integrate(s.p2)
+    for pid, f in ((1, s.p1), (2, s.p2)):
+        kind = land_if_needed(f)
+        if kind == "bounce":
+            events.append(CombatEvent(kind="bounce", defender=pid, data={"surface": "floor"}))
+    update_body_size(s.p1)
+    update_body_size(s.p2)
+    for pid, f in ((1, s.p1), (2, s.p2)):
+        kind = clamp_to_stage(f)
+        if kind == "wall":
+            events.append(CombatEvent(kind="bounce", defender=pid, data={"surface": "wall"}))
+    resolve_push(s)
+
+
+def _step_post_round(s: GameState, events: list[CombatEvent]) -> None:
+    if s.hitstop > 0:
+        s.hitstop -= 1
+    _dec_locks(s.p1)
+    _dec_locks(s.p2)
+    _run_physics(s, events)
+    for pid, f in ((1, s.p1), (2, s.p2)):
+        kind = land_if_needed(f)
+        if kind == "bounce":
+            events.append(CombatEvent(kind="bounce", defender=pid, data={"surface": "floor"}))
+    update_body_size(s.p1)
+    update_body_size(s.p2)
+    settle_living_if_grounded(s.p1)
+    settle_living_if_grounded(s.p2)
+    end_of_frame_move_tick(s.p1, events, 1)
+    end_of_frame_move_tick(s.p2, events, 2)
+
+
 def _resolve_round(s: GameState, events: list[CombatEvent]) -> None:
+    if s.round_state != RoundState.FIGHTING:
+        return
     d1 = s.p1.fsm == FSM.DEAD or s.p1.health <= 0
     d2 = s.p2.fsm == FSM.DEAD or s.p2.health <= 0
     if not d1 and not d2:

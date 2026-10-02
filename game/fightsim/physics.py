@@ -38,7 +38,7 @@ def apply_gravity_and_integrate(f: FighterState) -> None:
     if f.y > 0 or f.vy > 0:
         if f.vy > 0:
             g = GRAVITY_UP
-        elif f.fsm == FSM.HITSTUN:
+        elif f.fsm in (FSM.HITSTUN, FSM.DEAD):
             g = HITSTUN_GRAVITY_DOWN
         else:
             g = GRAVITY_DOWN
@@ -50,9 +50,13 @@ def apply_gravity_and_integrate(f: FighterState) -> None:
             f.vy = 0
     if f.y <= 0:
         f.y = 0
-        if f.vy < 0 and f.fsm != FSM.HITSTUN:
+        if f.vy < 0 and f.fsm not in (FSM.HITSTUN, FSM.DEAD):
             f.vy = 0
     f.x += f.vx
+
+
+def _launched_bounce(f: FighterState) -> bool:
+    return f.fsm in (FSM.HITSTUN, FSM.DEAD) and f.bounce_count < MAX_BOUNCES
 
 
 def clamp_to_stage(f: FighterState) -> str | None:
@@ -61,11 +65,7 @@ def clamp_to_stage(f: FighterState) -> str | None:
     bounced = None
     if f.x < hw:
         f.x = hw
-        if (
-            f.fsm == FSM.HITSTUN
-            and f.bounce_count < MAX_BOUNCES
-            and f.vx < 0
-        ):
+        if _launched_bounce(f) and f.vx < 0:
             f.vx = -f.vx * BOUNCE_VX_NUM // BOUNCE_VX_DEN
             f.bounce_count += 1
             bounced = "wall"
@@ -74,11 +74,7 @@ def clamp_to_stage(f: FighterState) -> str | None:
     max_x = STAGE_WIDTH - hw
     if f.x > max_x:
         f.x = max_x
-        if (
-            f.fsm == FSM.HITSTUN
-            and f.bounce_count < MAX_BOUNCES
-            and f.vx > 0
-        ):
+        if _launched_bounce(f) and f.vx > 0:
             f.vx = -f.vx * BOUNCE_VX_NUM // BOUNCE_VX_DEN
             f.bounce_count += 1
             bounced = "wall"
@@ -164,6 +160,16 @@ def land_if_needed(f: FighterState) -> str | None:
             f.move_has_hit = False
             f.landing_lock = LANDING_RECOVERY
         return None
+    if f.fsm == FSM.DEAD:
+        if f.bounce_count < MAX_BOUNCES and incoming_vy <= -BOUNCE_MIN_VY:
+            f.bounce_count += 1
+            f.y = SUBPIXEL
+            f.vy = -incoming_vy * BOUNCE_VY_NUM // BOUNCE_VY_DEN
+            f.vx = f.vx * BOUNCE_VX_NUM // BOUNCE_VX_DEN
+            return "bounce"
+        f.vx = 0
+        f.vy = 0
+        return None
     if f.fsm == FSM.HITSTUN and f.knockdown_pending:
         if f.bounce_count < MAX_BOUNCES and incoming_vy <= -BOUNCE_MIN_VY:
             f.bounce_count += 1
@@ -182,6 +188,24 @@ def land_if_needed(f: FighterState) -> str | None:
         f.fsm = FSM.IDLE
         f.vx = 0
         f.vy = 0
-    elif incoming_vy < 0 and f.fsm != FSM.HITSTUN:
+    elif incoming_vy < 0 and f.fsm not in (FSM.HITSTUN, FSM.DEAD):
         f.vy = 0
     return None
+
+
+def settle_living_if_grounded(f: FighterState) -> None:
+    """Post-round: cancel attacks/stun once a living fighter is on the floor."""
+    if f.health <= 0 or f.fsm == FSM.DEAD:
+        return
+    if airborne(f) or f.vy > 0:
+        return
+    f.y = 0
+    f.vx = 0
+    f.vy = 0
+    f.fsm = FSM.IDLE
+    f.move_id = ""
+    f.state_frame = 0
+    f.hitstun = 0
+    f.blockstun = 0
+    f.can_special_cancel = False
+    f.knockdown_pending = False

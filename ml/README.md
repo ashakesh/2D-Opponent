@@ -46,10 +46,12 @@ The agent is always **P2**. `--p1` selects a dummy or a human. Watch needs pygam
 python -m fightml.eval runs/ppo_mix4 --p1 zoner
 python -m fightml.eval runs/ppo_mix4 --p1 defensive
 python -m fightml.eval runs/ppo_mix4 --p1 human
+python -m fightml.eval runs/ppo_mix4 --p1 human --box no
+python -m fightml.eval runs/ppo_mix4 --p1 zoner --box maybe --native
 python -m fightml.eval runs/ppo_mix4 --per-style --headless --episodes 10
 ```
 
-`--frameskip` must match training (default 4). `--headless` cannot be combined with `--p1 human`.
+`--frameskip` must match training (default 4). `--headless` cannot be combined with `--p1 human`. Watch uses the same window as `fightsim.play`: `--box yes|no|maybe` (default `yes`; `no` is the play HUD, no skip=4 overlay), `--native` (locked 800×400), `--fullscreen` (desktop resolution, largest 0.25-step scale centered with letterbox; F11 toggles unless `--native`). Windowed watch starts at 800×400 and snaps on resize. Headless ignores window flags.
 
 ## Tests
 

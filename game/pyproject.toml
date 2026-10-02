@@ -21,7 +21,7 @@ where = ["."]
 include = ["fightsim*"]
 
 [tool.setuptools.package-data]
-fightsim = ["assets/fighters/**/*"]
+fightsim = ["assets/fighters/**/*", "assets/fonts/**/*"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

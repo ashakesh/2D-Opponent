@@ -15,13 +15,15 @@ from fightsim.animation import (
 )
 from fightsim.collision import hurtboxes, projectile_box, pushbox
 from fightsim.combat import attack_boxes
-from fightsim.config import HEALTH_MAX, METER_MAX, STAGE_WIDTH_PX, SUBPIXEL
-from fightsim.state import GameState
+from fightsim.config import FPS, HEALTH_MAX, METER_MAX, STAGE_WIDTH_PX, SUBPIXEL
+from fightsim.state import GameState, RoundState
 
 GROUND_SCREEN_Y = 340
 
 _image_cache: dict[str, Any] = {}
 _missing_warned: set[str] = set()
+_play_font_warned = False
+_PLAY_FONT_PATH = Path(__file__).resolve().parent / "assets" / "fonts" / "Barlow-SemiBold.ttf"
 
 
 def _sx(x: int) -> int:
@@ -73,7 +75,7 @@ def render_state(
             _rect(surface, projectile_box(p), (240, 220, 80), 1)
 
     _health(surface, state)
-    _hud(surface, state, p2_label)
+    _hud(surface, state, p2_label, box=box)
 
     if flip:
         pygame.display.flip()
@@ -95,6 +97,50 @@ def _font(size: int):
     import pygame
 
     return pygame.font.Font(None, size)
+
+
+def _play_font(size: int):
+    """Bundled OFL sans for --box no. Falls back to pygame default if missing."""
+    global _play_font_warned
+    import pygame
+
+    if _PLAY_FONT_PATH.is_file():
+        return pygame.font.Font(str(_PLAY_FONT_PATH), size)
+    if not _play_font_warned:
+        _play_font_warned = True
+        warnings.warn(f"fightsim play HUD font missing: {_PLAY_FONT_PATH}", stacklevel=2)
+    return pygame.font.Font(None, size)
+
+
+def seconds_remaining(state: GameState) -> int:
+    return max(0, int(state.timer) // FPS)
+
+
+def round_result_text(state: GameState) -> str | None:
+    rs = state.round_state
+    if rs is RoundState.FIGHTING:
+        return None
+    if rs is RoundState.P1_WIN:
+        return "P1 Wins"
+    if rs is RoundState.P2_WIN:
+        return "P2 Wins"
+    return "Draw"
+
+
+def play_p2_caption(p2_label: str | None) -> str:
+    if not p2_label:
+        return "Player 2"
+    key = p2_label.strip().lower()
+    special = {"agent": "Agent", "human": "Human"}
+    pretty = special.get(key, p2_label.replace("_", " ").title())
+    return f"Player 2 — {pretty}"
+
+
+def lab_hud_line(state: GameState) -> str:
+    return (
+        f"frame {state.frame}  timer {state.timer}  "
+        f"{state.round_state.value}  hitstop {state.hitstop}"
+    )
 
 
 def _draw_fighter_mode(
@@ -213,9 +259,17 @@ def _health(surface: Any, state: GameState) -> None:
     bar(STAGE_WIDTH_PX - 320, 36, 300, 8, state.p2.meter / METER_MAX, (80, 200, 120))
 
 
-def _hud(surface: Any, state: GameState, p2_label: str | None = None) -> None:
+def _hud(
+    surface: Any,
+    state: GameState,
+    p2_label: str | None = None,
+    box: str = "yes",
+) -> None:
+    if box == "no":
+        _play_hud(surface, state, p2_label)
+        return
     font = _font(18)
-    t = f"frame {state.frame}  timer {state.timer}  {state.round_state.value}  hitstop {state.hitstop}"
+    t = lab_hud_line(state)
     surface.blit(font.render(t, True, (240, 240, 240)), (STAGE_WIDTH_PX // 2 - 180, 12))
     if state.last_events:
         kinds = ",".join(e.kind for e in state.last_events)
@@ -224,3 +278,16 @@ def _hud(surface: Any, state: GameState, p2_label: str | None = None) -> None:
         tag = f"P2: {p2_label}"
         img = font.render(tag, True, (220, 200, 160))
         surface.blit(img, (STAGE_WIDTH_PX - img.get_width() - 16, 372))
+
+
+def _play_hud(surface: Any, state: GameState, p2_label: str | None) -> None:
+    title = _play_font(22)
+    big = _play_font(36)
+    result = round_result_text(state)
+    center = result if result is not None else str(seconds_remaining(state))
+    img = big.render(center, True, (240, 240, 240))
+    surface.blit(img, (STAGE_WIDTH_PX // 2 - img.get_width() // 2, 8))
+    p1 = title.render("Player 1", True, (180, 200, 255))
+    surface.blit(p1, (20, 372))
+    p2 = title.render(play_p2_caption(p2_label), True, (220, 200, 160))
+    surface.blit(p2, (STAGE_WIDTH_PX - p2.get_width() - 16, 372))

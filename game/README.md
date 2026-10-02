@@ -29,9 +29,13 @@ python -m fightsim.play --p2 human       # two keyboards
 python -m fightsim.play --p2 mash --box no   # PNG sprites from art/
 python -m fightsim.play --box yes            # debug push/hurt/hit rects (default)
 python -m fightsim.play --box maybe          # PNG sprites plus live box outlines
+python -m fightsim.play --box no --native    # 800x400 1:1 window
+python -m fightsim.play --fullscreen         # desktop fullscreen, centered letterbox (F11)
 ```
 
-`--box yes` (default) draws the debug rectangles. `--box no` blits `art/` using a feet pivot — PNGs only, plus HUD, with no character-box overlay. `--box maybe` uses the same sprites as `--box no` and overlays push / hurt / hit / projectile outlines (including head hurtboxes).
+`--box yes` (default) draws the debug rectangles and the lab HUD (frame, raw timer, hitstop, events). `--box no` blits `art/` using a feet pivot — PNGs only, plus a play HUD (health, meter, seconds remaining, round result) with no character-box overlay. `--box maybe` uses the same sprites as `--box no` and overlays push / hurt / hit / projectile outlines (including head hurtboxes), with the lab HUD.
+
+The window starts at 800×400 and stays resizable: drag snaps to the nearest 0.25 scale (1000×500, 1200×600, …) with no letterbox. `--native` locks 800×400. `--fullscreen` / `F11` opens at the **desktop resolution**, draws the largest 0.25 scale that fits, and **centers** it (letterbox). `--fullscreen` is mutually exclusive with `--native`. `Esc` quits, `R` resets.
 
 Stand light is a high that misses crouch (including the crouch head). Fireballs still hit a crouch: high damage and chip, long startup/recovery — an anti-camp clock, not a close poke. Blocking no longer swaps to a blockstun pose; the defender keeps crouch/stand and both fighters slide by an amount that scales with the strike.
 
