@@ -1,4 +1,4 @@
-"""Legal semantic-action mask. Not wired into PPO yet (needs MaskablePPO)."""
+"""Legal semantic-action mask. Used by MaskablePPO via FightEnv.action_masks()."""
 
 from __future__ import annotations
 

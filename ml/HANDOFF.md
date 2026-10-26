@@ -1,8 +1,8 @@
-# ML research handoff
+# ML research notes
 
-You own **training and experiment code** in `ml/` (`fightml`). The game lives in `game/` (`fightsim`) and is maintained separately. Do not turn the simulator into a training library, and do not import `fightml` from `game/`.
+Training and experiment code live in `ml/` (`fightml`). The game lives in `game/` (`fightsim`) and is maintained separately. Do not turn the simulator into a training library, and do not import `fightml` from `game/`.
 
-This document is the source of truth for catching up. Read it before writing `env.py` or a trainer.
+This document is the source of truth for goals, the sim contract, reward pitfalls, and what to do next.
 
 ---
 
@@ -18,7 +18,7 @@ simulation → reproducible data → self-play → adaptive behavior → techniq
 
 A **custom deterministic simulator** was chosen over Ikemen GO so that iteration is fast and state/control is exact. Ikemen remains a fallback only if this sim cannot express a research-blocking mechanic. The Python API stays the same either way.
 
-Long-term roadmap (your work, in order):
+Long-term roadmap (in order):
 
 1. **Competent play** — full `GameState`, complete move set, semantic actions.
 2. **Adaptive play** — self-play / opponent populations, not one frozen dummy.
@@ -51,7 +51,7 @@ raw inputs ───────► │    Simulator     │
                     /                  \
                    ▼                    ▼
             ML observation           Renderer
-            (your wrapper)         (optional pygame)
+            (fightml wrapper)      (optional pygame)
 ```
 
 ---
@@ -71,7 +71,7 @@ render()                               # optional; must not be required to step
 
 Implementation: `fightsim.Simulator` in [`game/fightsim/api.py`](../game/fightsim/api.py).
 
-**Always both players, always one frame.** Frameskip, action-repeat, and the opponent policy belong in your wrapper, never in the sim.
+**Always both players, always one frame.** Frameskip, action-repeat, and the opponent policy belong in the `fightml` wrapper, never in the sim.
 
 `render()` no-ops if pygame is missing. Training must not import pygame.
 
@@ -109,7 +109,7 @@ Phase-1 Gym action `Phase1Action.SPECIAL_3` maps to pulse.
 
 Bump note: current sim is **0.3.0**. Older replays are invalid.
 
-### What exists in the game (not your job)
+### What exists in the game (not ML's job)
 
 - Two identical fighters, one stage, dummy CPU in `fightsim.dummy`: `idle` / `block` / `mash` / `crouch_block` plus personalities `aggressive` / `defensive` / `rushdown` / `mobile` / `zoner` / `grappler`. Play `--p2 mix` picks a personality (reproducible from `--seed`; `R` re-rolls). HUD shows the resolved name.
 - Headless determinism, save/load, replay tests under `game/tests/`
@@ -141,19 +141,19 @@ pip install -e "./game[dev]"
 PYTHONPATH=game python3 -m pytest game/tests
 ```
 
-Your package:
+ML package:
 
 ```bash
 pip install -e "./game" -e "./ml"
 ```
 
-`fightml` has `env.py` / `train.py` / `eval.py`. Current run is **mix4**: MaskablePPO vs personality dummies only (`--dummy-only`, 30e6 steps), timeout win +0.25 / indecisive timeout −0.25, a small per-step time cost, and a range-gated whiff penalty. Checkpoints go to `ml/runs/pool4/` but are **not** sampled as P2 this generation. Eval plays the zip as **P2** (`--p1` dummy/human). Artifacts belong in **`ml/runs/` only** (relative `runs/...` flags resolve there regardless of cwd). Next: PFSP win-rate sampling, then raw-input with command flags off.
+`fightml` has `env.py` / `train.py` / `eval.py`. Named generation zips are in [`artifacts/`](artifacts/) (see **What exists now**). New local trains still write under **`ml/runs/`** (gitignored; relative `runs/...` flags resolve there regardless of cwd). Eval plays the zip as **P2** (`--p1` dummy/human).
 
 ---
 
-## Your milestones
+## Roadmap
 
-### 1 — Competent play (do this first)
+### 1 — Competent play (done)
 
 Full `GameState` → policy → **semantic** action → `RawInput` adapter → `step()`.
 
@@ -245,11 +245,25 @@ GameState → fightml env → Policy → RawInput P1
 
 ---
 
-## First files to add (suggested)
+## What exists now
 
-- `ml/fightml/env.py` — Gymnasium `Env`, `reset`/`step`, obs flatten, semantic actions, dummy as P2, frameskip, reward from health/round. Depends on `fightsim`.
-- `ml/fightml/train.py` — PPO vs dummy; CLI seed, timesteps, save path.
-- Keep [`protocol.py`](fightml/protocol.py) free of `fightsim` imports so a future backend can drop in.
+Phase 1 (competent play vs scripted dummies) is in the tree:
+
+- [`env.py`](fightml/env.py) / [`train.py`](fightml/train.py) / [`eval.py`](fightml/eval.py) — Gymnasium env, MaskablePPO, eval as P2
+- [`protocol.py`](fightml/protocol.py) stays free of `fightsim` imports so a future backend can drop in
+- [`artifacts/`](artifacts/) — named generation zips to watch without retraining:
+  - `ppo_block.zip` — first dummy (block)
+  - `ppo_mix.zip` — early personality mix
+  - `ppo_mix2.zip` — mash-heavy mix
+  - `ppo_mix3.zip` — jump-stall mix (timeout-at-0; the failure mix4 fixed)
+  - `ppo_mix4.zip` — current: dummy-only, 30e6 steps, timeout win +0.25 / indecisive timeout −0.25, time cost, range-gated whiff. KOs zoner/defensive instead of 10k–10k stalling
+
+```bash
+python -m fightml.eval artifacts/ppo_mix4 --p1 human
+python -m fightml.eval artifacts/ppo_mix3 --p1 zoner
+```
+
+**Next:** PFSP / sampling a frozen pool (adaptive play, not one-dummy exploit), then raw-input with `command_special_*` off.
 
 ---
 

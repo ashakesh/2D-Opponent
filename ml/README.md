@@ -2,7 +2,7 @@
 
 ML research for fighting-game agents. **This package does not implement a game.**
 
-**Catch-up for the research owner:** read [`HANDOFF.md`](HANDOFF.md) first (goals, API, milestones, approaches, what not to do).
+Goals, sim contract, and next steps: [`HANDOFF.md`](HANDOFF.md).
 
 It depends on a backend that matches [`fightml.protocol.FightingSimulator`](fightml/protocol.py):
 
@@ -18,9 +18,21 @@ The default backend is `fightsim` (`../game`). Swap the backend by wrapping any 
 
 Phase 1 mix4: MaskablePPO vs personality dummies only (`--dummy-only`, 30e6 steps). Timeout win is +0.25 (weaker than a KO); indecisive clock-outs are −0.25; a small time cost and a range-gated whiff penalty apply. Eval plays the zip as **P2**. See [HANDOFF.md](HANDOFF.md). Next: PFSP win-rate sampling, then raw-input with command flags off.
 
-Checkpoints, pool zips, and TensorBoard logs live only in **`ml/runs/`**. CLI flags still look like `runs/ppo_mix4`; they always resolve there, even if you launch from the repo root.
+Shipped generation zips live in **`ml/artifacts/`** (block, mix, mix2, mix3, mix4). New local trains, pool dumps, and TensorBoard logs go in **`ml/runs/`** (gitignored). CLI flags like `runs/ppo_mix4` always resolve under `ml/runs/` regardless of cwd; `artifacts/ppo_mix4` resolves to the shipped zip.
 
 ## Install
+
+From the **repo root**, recreate the mix4 environment (Python 3.10 + pinned SB3/torch). See the root [`README.md`](../README.md) and [`requirements-lock.txt`](../requirements-lock.txt).
+
+```bash
+python3.10 -m venv venv
+source venv/bin/activate          # Windows: venv\Scripts\activate
+pip install -U pip
+pip install -r requirements-lock.txt
+pip install -e "./game[play]" -e "./ml[dev]"
+```
+
+From `ml/` only, if the venv is already active:
 
 ```bash
 pip install -e "../game" -e ".[dev]"
@@ -43,12 +55,14 @@ TensorBoard logging is off unless you pass `--tb runs/tb`. Training does not imp
 The agent is always **P2**. `--p1` selects a dummy or a human. Watch needs pygame (`pip install -e "../game[play]"`). Human P1 uses WASD + J/K/L (same as `fightsim.play`). Headless `--per-style` scores each personality as P1, both orientations.
 
 ```bash
-python -m fightml.eval runs/ppo_mix4 --p1 zoner
-python -m fightml.eval runs/ppo_mix4 --p1 defensive
-python -m fightml.eval runs/ppo_mix4 --p1 human
-python -m fightml.eval runs/ppo_mix4 --p1 human --box no
-python -m fightml.eval runs/ppo_mix4 --p1 zoner --box maybe --native
-python -m fightml.eval runs/ppo_mix4 --per-style --headless --episodes 10
+python -m fightml.eval artifacts/ppo_mix4 --p1 zoner
+python -m fightml.eval artifacts/ppo_mix4 --p1 defensive
+python -m fightml.eval artifacts/ppo_mix4 --p1 human
+python -m fightml.eval artifacts/ppo_mix4 --p1 human --box no
+python -m fightml.eval artifacts/ppo_mix4 --p1 zoner --box maybe --native
+python -m fightml.eval artifacts/ppo_mix4 --per-style --headless --episodes 10
+python -m fightml.eval artifacts/ppo_mix3 --p1 zoner   # jump-stall, for comparison
+python -m fightml.eval artifacts/ppo_mix2 --p1 mash
 ```
 
 `--frameskip` must match training (default 4). `--headless` cannot be combined with `--p1 human`. Watch uses the same window as `fightsim.play`: `--box yes|no|maybe` (default `yes`; `no` is the play HUD, no skip=4 overlay), `--native` (locked 800×400), `--fullscreen` (desktop resolution, largest 0.25-step scale centered with letterbox; F11 toggles unless `--native`). Windowed watch starts at 800×400 and snaps on resize. Headless ignores window flags.

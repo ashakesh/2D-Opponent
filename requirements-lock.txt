@@ -1,0 +1,11 @@
+# Pins from the mix4 train/eval environment (Python 3.10.11).
+# Recreate: python3.10 -m venv venv && source venv/bin/activate
+#           pip install -U pip && pip install -r requirements-lock.txt
+#           pip install -e "./game[play]" -e "./ml[dev]"
+torch==2.11.0
+stable-baselines3==2.9.0
+sb3-contrib==2.9.0
+gymnasium==1.3.0
+numpy==2.2.6
+pygame==2.6.1
+pytest==9.1.1

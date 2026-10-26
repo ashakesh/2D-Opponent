@@ -9,5 +9,6 @@ build/
 venv/
 *.egg
 .DS_Store
+.cursor/
 ml/runs/
 /runs/
