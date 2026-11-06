@@ -129,7 +129,9 @@ def train(args: argparse.Namespace) -> Path:
         tb_path.mkdir(parents=True, exist_ok=True)
         tb_log = str(tb_path)
 
+    # Create training environment (the fighting game)
     env = make_vec_env(args)
+    # Create the model. It will learn with PPO
     model = MaskablePPO(
         "MlpPolicy",
         env,
@@ -138,6 +140,8 @@ def train(args: argparse.Namespace) -> Path:
         ent_coef=float(args.ent_coef),
         verbose=1,
     )
+    # If the passed arguments say to save a model every so often
+    # Then create a callback to check point it.
     callbacks = []
     if int(args.ckpt_every) > 0:
         pool = Path(args.pool)
@@ -152,12 +156,15 @@ def train(args: argparse.Namespace) -> Path:
                 save_vecnormalize=False,
             )
         )
+    # Train the model in the environment
     model.learn(
         total_timesteps=int(args.timesteps),
         callback=callbacks or None,
         progress_bar=False,
     )
+    # Save the model
     model.save(str(save_path))
+    # Close the environment
     env.close()
     return save_path
 
