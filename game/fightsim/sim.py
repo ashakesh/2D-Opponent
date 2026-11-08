@@ -100,8 +100,6 @@ def step_state_mutate(state: GameState, p1_in: RawInput, p2_in: RawInput) -> tup
     s.last_events = events
     return s, events
 
-#TODO: Make an in place version of this. i.e. without deep copies
-# Currently the only class that uses it is the Simulator class
 def step_state(state: GameState, p1_in: RawInput, p2_in: RawInput) -> tuple[GameState, list[CombatEvent]]:
     """
     Takes a game state and computes the next frame's game state.
