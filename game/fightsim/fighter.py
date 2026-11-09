@@ -44,7 +44,7 @@ from fightsim.moves import (
     SPECIALS,
 )
 from fightsim.physics import airborne
-from fightsim.state import FSM, FighterState, Projectile
+from fightsim.state import FSM, FighterState, Projectile, ProjectilePool
 
 
 def buffer_input(f: FighterState, inp: RawInput) -> None:
@@ -335,7 +335,7 @@ def block_flags(f: FighterState, inp: RawInput) -> tuple[bool, bool]:
 
 
 def spawn_fireball_if_needed(
-    f: FighterState, pid: int, events: list[CombatEvent]
+        f: FighterState, pid: int, events: list[CombatEvent], pool: ProjectilePool
 ) -> Projectile | None:
     if f.fsm != FSM.ATTACK or f.move_id != FIREBALL.move_id:
         return None
@@ -344,7 +344,8 @@ def spawn_fireball_if_needed(
     if f.state_frame != FIREBALL.projectile_frame:
         return None
     f.move_spawned = True
-    proj = Projectile(
+    proj = pool.newProjectile()
+    proj.update(
         owner=pid,
         x=f.x + f.facing * (40 * SUBPIXEL),
         y=PROJ_Y,

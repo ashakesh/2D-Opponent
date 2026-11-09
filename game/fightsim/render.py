@@ -66,7 +66,7 @@ def render_state(
     _draw_fighter_mode(surface, state.p1, (80, 160, 255), state.frame, debug_only, overlay)
     _draw_fighter_mode(surface, state.p2, (220, 80, 80), state.frame, debug_only, overlay)
 
-    for p in state.projectiles:
+    for p in state.getProjectiles():
         if debug_only:
             _rect(surface, projectile_box(p), (240, 220, 80), 0)
         elif not _draw_projectile_sprite(surface, p, state.frame):

@@ -301,18 +301,23 @@ def _resolve_projectiles(
     crouch2: bool,
     events: list[CombatEvent],
 ) -> None:
-    alive: list[Projectile] = []
-    for i, p in enumerate(state.projectiles):
+    # alive: list[Projectile] = []
+    i = 0
+    while i < state.projectiles.getProjectileCount():
+        p = state.projectiles.getProjectile(i)
+
         p.x += p.vx
         p.y += p.vy
         p.lifetime -= 1
         if p.lifetime <= 0:
+            state.projectiles.removeProjectile(i)
             continue
         if _pulse_erases(state.p1, 1, p, events) or _pulse_erases(state.p2, 2, p, events):
+            state.projectiles.removeProjectile(i)
             continue
         pb = projectile_box(p)
         skip = False
-        for j, q in enumerate(state.projectiles):
+        for j, q in enumerate(state.getProjectiles()):
             if j <= i or q.owner == p.owner:
                 continue
             if q.lifetime <= 0:
@@ -323,12 +328,13 @@ def _resolve_projectiles(
                 events.append(CombatEvent(kind="projectile_clash"))
                 break
         if skip:
+            state.projectiles.removeProjectile(i)
             continue
         defender = state.p2 if p.owner == 1 else state.p1
         defender_id = 2 if p.owner == 1 else 1
         attacker = state.p1 if p.owner == 1 else state.p2
         if defender.fsm == FSM.DEAD or defender.invuln > 0:
-            alive.append(p)
+            # Keep projectile
             continue
         if any_overlap([pb], hurtboxes(defender)):
             holding = block2 if p.owner == 1 else block1
@@ -373,6 +379,8 @@ def _resolve_projectiles(
                     data={"blocked": blocked},
                 )
             )
+            state.projectiles.removeProjectile(i)
             continue
-        alive.append(p)
-    state.projectiles = alive
+        # keep projectile
+        i += 1
+    # state.projectiles = alive

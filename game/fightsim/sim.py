@@ -70,13 +70,11 @@ def step_state_mutate(state: GameState, p1_in: RawInput, p2_in: RawInput) -> tup
     detect_and_apply(s, b1, c1, b2, c2, events)
 
     for pid, f in ((1, s.p1), (2, s.p2)):
-        proj = spawn_fireball_if_needed(f, pid, events)
-        if proj is not None:
-            s.projectiles.append(proj)
+        proj = spawn_fireball_if_needed(f, pid, events, s.projectiles)
 
     for pid, f in ((1, s.p1), (2, s.p2)):
-        kind = land_if_needed(f)
-        if kind == "bounce":
+        hasBounced = land_if_needed(f)
+        if hasBounced:
             events.append(CombatEvent(kind="bounce", defender=pid, data={"surface": "floor"}))
     update_body_size(s.p1)
     update_body_size(s.p2)
@@ -130,8 +128,8 @@ def _run_physics(s: GameState, events: list[CombatEvent]) -> None:
     apply_gravity_and_integrate(s.p1)
     apply_gravity_and_integrate(s.p2)
     for pid, f in ((1, s.p1), (2, s.p2)):
-        kind = land_if_needed(f)
-        if kind == "bounce":
+        hasBounced = land_if_needed(f)
+        if hasBounced:
             events.append(CombatEvent(kind="bounce", defender=pid, data={"surface": "floor"}))
     update_body_size(s.p1)
     update_body_size(s.p2)
@@ -149,8 +147,8 @@ def _step_post_round(s: GameState, events: list[CombatEvent]) -> None:
     _dec_locks(s.p2)
     _run_physics(s, events)
     for pid, f in ((1, s.p1), (2, s.p2)):
-        kind = land_if_needed(f)
-        if kind == "bounce":
+        hasBounced = land_if_needed(f)
+        if hasBounced:
             events.append(CombatEvent(kind="bounce", defender=pid, data={"surface": "floor"}))
     update_body_size(s.p1)
     update_body_size(s.p2)

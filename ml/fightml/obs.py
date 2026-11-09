@@ -8,6 +8,7 @@ No coordinate mirror: random spawn already trains both screen sides.
 from __future__ import annotations
 
 import numpy as np
+import itertools as it
 
 from fightsim.config import HEALTH_MAX, METER_MAX, ROUND_TIMER, STAGE_HEIGHT, STAGE_WIDTH
 from fightsim.state import FSM, FighterState, GameState, Projectile, initial_state
@@ -80,7 +81,7 @@ def flatten_state(state: GameState, view_pid: int = 1) -> np.ndarray:
     feats.append((opp.x - me.x) / STAGE_WIDTH)
     feats.append(state.timer / ROUND_TIMER)
     feats.append(state.hitstop / _HITSTOP)
-    slots = list(state.projectiles[:_MAX_PROJECTILES])
+    slots = list(it.islice(state.projectiles.getProjectiles(), _MAX_PROJECTILES))
     while len(slots) < _MAX_PROJECTILES:
         slots.append(None)
     for proj in slots:

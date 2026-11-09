@@ -81,7 +81,7 @@ def test_command_fireball_spawns_projectile():
     found = False
     for _ in range(28):
         sim.step(RawInput(), RawInput())
-        if sim.get_state().projectiles:
+        if len(sim.get_state().projectiles) > 0:
             found = True
             break
     assert found
@@ -292,7 +292,7 @@ def test_pulse_erases_incoming_fireball():
             break
     assert erased
     assert sim.get_state().p1.health == HEALTH_MAX
-    assert not sim.get_state().projectiles
+    assert len(sim.get_state().projectiles) == 0
 
 
 def test_blocked_fireball_chips_blocked_jab_does_not():

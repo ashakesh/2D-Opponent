@@ -130,7 +130,7 @@ def _aggressive(state: GameState, me, other) -> RawInput:
 
 def _incoming_projectile(state: GameState, me) -> bool:
     my_id = 1 if me is state.p1 else 2
-    for proj in state.projectiles:
+    for proj in state.getProjectiles():
         if proj.owner == my_id:
             continue
         if abs(me.x - proj.x) > _FIREBALL_DODGE_RANGE:

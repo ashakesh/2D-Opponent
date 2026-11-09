@@ -6,6 +6,7 @@ import json
 from dataclasses import dataclass, field
 from enum import Enum
 from typing import Any
+import itertools as it
 
 from fightsim.config import (
     CHARACTER_CONFIG,
@@ -51,7 +52,6 @@ class Height(str, Enum):
     OVERHEAD = "overhead"
     THROW = "throw"
 
-
 @dataclass
 class Projectile:
     owner: int
@@ -69,6 +69,23 @@ class Projectile:
     knockback_y: int
     lifetime: int
     height: str = Height.HIGH.value
+    def update(self, owner: int, x: int, y: int, vx: int, vy: int, w: int, h: int, damage:int, hitstun: int, blockstun:int, hitstop: int, knockback_x: int, knockback_y: int, lifetime: int, height: str = Height.HIGH.value):
+        self.owner = owner
+        self.x = x
+        self.y = y
+        self.vx = vx
+        self.vy = vy
+        self.w = w
+        self.h = h
+        self.damage = damage
+        self.hitstun = hitstun
+        self.blockstun = blockstun
+        self.hitstop = hitstop
+        self.knockback_x = knockback_x
+        self.knockback_y = knockback_y
+        self.lifetime = lifetime
+        self.height = height
+
 
     def to_dict(self) -> dict[str, int | str]:
         return {
@@ -207,6 +224,62 @@ class FighterState:
         )
 
 
+class ProjectilePool:
+    _projectiles: list[Projectile] = []
+    _projectileCount: int = 0
+    def append(self, proj: Projectile):
+        """
+        Add a new projectile to pool.
+        Warning:
+            Likely more resources intensive than to use ProjectilePool.newProjectile
+        """
+        if self._projectileCount >= len(self._projectiles):
+            self._projectiles.append(proj)
+        else:
+            self._projectiles[self._projectileCount] = proj
+        self._projectileCount += 1
+
+    def newProjectile(self) -> Projectile:
+        """
+        Create a new projectile and returns it for external modification.
+        """
+        self._projectileCount += 1
+        if self._projectileCount > len(self._projectiles):
+            self._projectiles.append(Projectile(0,0,0,0,0,0,0,0,0,0,0,0,0,0))
+        return self._projectiles[self._projectileCount - 1]
+    def getProjectileCount(self) -> int:
+        return len(self)
+    def __len__(self) -> int:
+        return self._projectileCount
+    def getProjectile(self, pid: int) -> Projectile:
+        return self[pid]
+    def __getitem__(self, pid:int):
+        assert(pid<self._projectileCount)
+        return self._projectiles[pid]
+    
+    def getProjectiles(self):
+        return it.islice(self._projectiles, self._projectileCount)
+
+    def popProjectile(self):
+        self.removeProjectile(self._projectileCount - 1)
+    def removeProjectile(self, projectileIndex: int):
+        assert(projectileIndex < self._projectileCount)
+        self._projectiles[projectileIndex], self._projectiles[self._projectileCount-1] = self._projectiles[self._projectileCount-1], self._projectiles[projectileIndex]
+        self._projectileCount -= 1
+
+    def to_dict(self)-> list[Any]:
+        return [p.to_dict() for (pid, p) in enumerate(self._projectiles) if pid < self._projectileCount]
+
+    @staticmethod
+    def from_dict(self, d: list[Any]) -> ProjectilePool:
+        pp = ProjectilePool()
+        for p in d:
+            np = pp.newProjectile()
+            np.__dict__.update(p.__dict__) # copy values 
+        return pp
+
+
+
 @dataclass
 class GameState:
     frame: int
@@ -215,11 +288,15 @@ class GameState:
     rng: RngState
     p1: FighterState
     p2: FighterState
-    projectiles: list[Projectile]
     hitstop: int
+    projectiles: ProjectilePool
     version: str = SIMULATOR_VERSION
     config_id: str = CHARACTER_CONFIG
     last_events: list[CombatEvent] = field(default_factory=list)
+
+
+    def getProjectiles(self):
+        return self.projectiles.getProjectiles()
 
     def fighter(self, pid: int) -> FighterState:
         return self.p1 if pid == 1 else self.p2
@@ -235,7 +312,7 @@ class GameState:
             "rng": {"state": self.rng.state, "inc": self.rng.inc},
             "p1": self.p1.to_dict(),
             "p2": self.p2.to_dict(),
-            "projectiles": [p.to_dict() for p in self.projectiles],
+            "projectiles": self.projectiles.to_dict(),
             "hitstop": self.hitstop,
             "version": self.version,
             "config_id": self.config_id,
@@ -252,7 +329,7 @@ class GameState:
             rng=RngState(int(rng_d["state"]), int(rng_d["inc"])),
             p1=FighterState.from_dict(d["p1"]),
             p2=FighterState.from_dict(d["p2"]),
-            projectiles=[Projectile.from_dict(p) for p in d["projectiles"]],
+            _projectiles=ProjectilePool.from_dict(d["projectiles"]),
             hitstop=int(d["hitstop"]),
             version=str(d.get("version", SIMULATOR_VERSION)),
             config_id=str(d.get("config_id", CHARACTER_CONFIG)),
@@ -300,7 +377,7 @@ def initial_state(seed: int) -> GameState:
         rng=seed_rng(seed),
         p1=_blank_fighter(START_P1_X, 1),
         p2=_blank_fighter(START_P2_X, -1),
-        projectiles=[],
+        projectiles=ProjectilePool(),
         hitstop=0,
         version=SIMULATOR_VERSION,
         config_id=CHARACTER_CONFIG,

@@ -28,6 +28,7 @@ from fightsim.config import (
     SUBPIXEL,
 )
 from fightsim.state import FSM, FighterState, GameState
+from enum import Enum
 
 
 def airborne(f: FighterState) -> bool:
@@ -130,14 +131,16 @@ def resolve_push(state: GameState) -> None:
         clamp_to_stage(b)
 
 
-def land_if_needed(f: FighterState) -> str | None:
-    """Returns 'bounce' if a floor bounce happened this frame."""
+
+
+def land_if_needed(f: FighterState) -> bool:
+    """Returns True if a floor bounce happened this frame."""
     if f.y > 0:
-        return None
+        return False
     incoming_vy = f.vy
     # Still launching off the ground this frame — do not treat as a landing.
     if incoming_vy > 0:
-        return None
+        return False
     f.y = 0
     if f.fsm == FSM.JUMP:
         f.fsm = FSM.IDLE
@@ -146,7 +149,7 @@ def land_if_needed(f: FighterState) -> str | None:
         f.vy = 0
         f.move_id = ""
         f.jump_lock = max(f.jump_lock, JUMP_COOLDOWN)
-        return None
+        return False
     if f.fsm == FSM.ATTACK and f.move_id == "jump_light":
         f.y = 0
         f.vx = 0
@@ -159,17 +162,17 @@ def land_if_needed(f: FighterState) -> str | None:
             f.can_special_cancel = False
             f.move_has_hit = False
             f.landing_lock = LANDING_RECOVERY
-        return None
+        return False
     if f.fsm == FSM.DEAD:
         if f.bounce_count < MAX_BOUNCES and incoming_vy <= -BOUNCE_MIN_VY:
             f.bounce_count += 1
             f.y = SUBPIXEL
             f.vy = -incoming_vy * BOUNCE_VY_NUM // BOUNCE_VY_DEN
             f.vx = f.vx * BOUNCE_VX_NUM // BOUNCE_VX_DEN
-            return "bounce"
+            return True
         f.vx = 0
         f.vy = 0
-        return None
+        return False
     if f.fsm == FSM.HITSTUN and f.knockdown_pending:
         if f.bounce_count < MAX_BOUNCES and incoming_vy <= -BOUNCE_MIN_VY:
             f.bounce_count += 1
@@ -177,20 +180,20 @@ def land_if_needed(f: FighterState) -> str | None:
             f.vy = -incoming_vy * BOUNCE_VY_NUM // BOUNCE_VY_DEN
             f.vx = f.vx * BOUNCE_VX_NUM // BOUNCE_VX_DEN
             f.hitstun = max(f.hitstun, BOUNCE_HITSTUN)
-            return "bounce"
+            return True
         f.fsm = FSM.KNOCKDOWN
         f.state_frame = 0
         f.vx = 0
         f.vy = 0
         f.hitstun = 0
-        return None
+        return False
     if f.fsm == FSM.HITSTUN and f.hitstun <= 0:
         f.fsm = FSM.IDLE
         f.vx = 0
         f.vy = 0
     elif incoming_vy < 0 and f.fsm not in (FSM.HITSTUN, FSM.DEAD):
         f.vy = 0
-    return None
+    return False
 
 
 def settle_living_if_grounded(f: FighterState) -> None:
