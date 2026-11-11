@@ -18,6 +18,7 @@ from fightml.env import (
     make_fight_env,
 )
 from fightml.paths import resolve_runs_path
+from fightml.receipt import ReceiptBuilder
 
 
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
@@ -129,6 +130,13 @@ def train(args: argparse.Namespace) -> Path:
     save_path.parent.mkdir(parents=True, exist_ok=True)
     args.pool = str(resolve_runs_path(args.pool))
 
+    # Built before training starts, so an uncommitted-changes warning (and
+    # any future reproducibility checks) surfaces before time is spent
+    # training rather than after.
+    # TODO: training config isn't recorded in the receipt yet - see
+    # ReceiptBuilder._build_metadata.
+    receipt = ReceiptBuilder(save_path, {})
+
     tb_log: str | None = None
     if args.tb:
         tb_path = resolve_runs_path(args.tb)
@@ -171,11 +179,14 @@ def train(args: argparse.Namespace) -> Path:
         progress_bar=False,
     )
 
-    # Save the model
-    model.save(str(save_path))
+    # Save the model into the receipt: an ordinary SB3 model zip with an
+    # extra receipt.json entry recording the git commits the game/ml code
+    # came from.
+    model.save(receipt.recieptBuffer())
+    receipt_path = receipt.finishReceipt()
     # Close the environment
     env.close()
-    return save_path
+    return receipt_path
 
 
 def _eval_after(path: Path, args: argparse.Namespace) -> None:
