@@ -31,12 +31,22 @@ from typing import Any
 import functools as ft
 import matplotlib.pyplot as plt
 
-def summary_times_training(file_path: str):
+def get_profiling_data(file_path: str) -> dict[str, Any]:
     f = open(file_path, "r")
     raw_json: str= "\n".join(f.readlines())
     f.close()
 
-    all_data: dict[str, Any] = json.loads(raw_json)
+    return json.loads(raw_json)
+
+def count_occurences(file_path: str, functionName: str, filePathShort:str):
+    all_data = get_profiling_data(file_path)
+    def recurrsiveCounter(data: Any) -> int:
+        return 1 if (data["function"].startswith(functionName)) else sum(map(recurrsiveCounter, data["children"]))
+    return recurrsiveCounter(all_data["root_frame"])
+
+
+def summary_times_training(file_path: str):
+    all_data = get_profiling_data(file_path)
     def concatTimes(t1: dict[str, float], t2: dict[str, float]) -> dict[str,float]:
         t3 : dict[str, float] = {}
         for k1 in t1.keys():

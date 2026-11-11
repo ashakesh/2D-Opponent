@@ -317,15 +317,33 @@ def maybe_die(f: FighterState) -> None:
         f.move_id = ""
 
 
+""" 
+Attribute allocation is relatively slow in python.
+Bake which states which do and do not allow for refacing in a dict for fast reading. 
+"""
+_states_avoid_reface = {st: False for st in FSM}
+for st in(FSM.ATTACK, FSM.HITSTUN, FSM.BLOCKSTUN, FSM.DASH, FSM.KNOCKDOWN, FSM.DEAD):
+    _states_avoid_reface[st] = True
+
 def update_facing(f: FighterState, other: FighterState) -> None:
+    """
+    Update the direction that both fighters are facing. They should automatically turn to look at each other if they are in a state that can.
+    """
+    facing = f.facing
+    if facing * other.x > facing * f.x:
+        # if already facing the correct direction then don't reface
+        return
+
     if airborne(f):
+        # if airborne then don't reface
         return
-    if f.fsm in (FSM.ATTACK, FSM.HITSTUN, FSM.BLOCKSTUN, FSM.DASH, FSM.KNOCKDOWN, FSM.DEAD):
+
+    if _states_avoid_reface[f.fsm]:
+        # if a state that doesn't allow for refacing, don't reface
         return
-    if other.x > f.x:
-        f.facing = 1
-    elif other.x < f.x:
-        f.facing = -1
+
+    # swap the orientation
+    f.facing = -facing
 
 
 def block_flags(f: FighterState, inp: RawInput) -> tuple[bool, bool]:
