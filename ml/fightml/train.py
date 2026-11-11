@@ -18,6 +18,7 @@ from fightml.env import (
     make_fight_env,
 )
 from fightml.paths import resolve_runs_path
+from fightml.receipt import ReceiptBuilder
 
 
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
@@ -93,6 +94,12 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         default=2,
         help="Episodes per personality for --eval-after (both orientations).",
     )
+    parser.add_argument(
+            "--performance",
+            type = argparse.BooleanOptionalAction,
+            default = False,
+            help="Measure the performance of the training program."
+            )
     return parser.parse_args(argv)
 
 
@@ -123,13 +130,21 @@ def train(args: argparse.Namespace) -> Path:
     save_path.parent.mkdir(parents=True, exist_ok=True)
     args.pool = str(resolve_runs_path(args.pool))
 
+    # Built before training starts, so an uncommitted-changes warning (and
+    # any future reproducibility checks) surfaces before time is spent
+    # training rather than after.
+    # TODO: training config isn't recorded in the receipt yet - see
+    # ReceiptBuilder._build_metadata.
+    receipt = ReceiptBuilder(save_path, {})
+
     tb_log: str | None = None
     if args.tb:
         tb_path = resolve_runs_path(args.tb)
         tb_path.mkdir(parents=True, exist_ok=True)
         tb_log = str(tb_path)
-
+    # Create training environment (the fighting game)
     env = make_vec_env(args)
+    # Create the model. It will learn with PPO
     model = MaskablePPO(
         "MlpPolicy",
         env,
@@ -138,6 +153,9 @@ def train(args: argparse.Namespace) -> Path:
         ent_coef=float(args.ent_coef),
         verbose=1,
     )
+    # If the passed arguments say to checkpoint 
+    # (save the model every so often in training)
+    # Then create a callback to checkpoint it.
     callbacks = []
     if int(args.ckpt_every) > 0:
         pool = Path(args.pool)
@@ -152,14 +170,23 @@ def train(args: argparse.Namespace) -> Path:
                 save_vecnormalize=False,
             )
         )
+    
+
+    # Train the model in the environment
     model.learn(
         total_timesteps=int(args.timesteps),
         callback=callbacks or None,
         progress_bar=False,
     )
-    model.save(str(save_path))
+
+    # Save the model into the receipt: an ordinary SB3 model zip with an
+    # extra receipt.json entry recording the git commits the game/ml code
+    # came from.
+    model.save(receipt.recieptBuffer())
+    receipt_path = receipt.finishReceipt()
+    # Close the environment
     env.close()
-    return save_path
+    return receipt_path
 
 
 def _eval_after(path: Path, args: argparse.Namespace) -> None:
