@@ -188,7 +188,6 @@ class FightEnv(gym.Env):
         return self.time_cost / policy_steps
 
     def step(self, action: int) -> tuple[np.ndarray, float, bool, bool, dict[str, Any]]:
-        # TODO: shouldn't a lot of this be handled by fightsim? Not here? This is just meant to be the ml. Please may someone clarify
         state = self.sim.get_state()
         p1_raw = action_to_raw(int(action), state.p1.facing)
         h1_before = state.p1.health
