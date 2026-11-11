@@ -28,9 +28,18 @@ from fightsim.physics import (
 )
 from fightsim.state import FSM, GameState, RoundState
 
+def step_state_mutate(state: GameState, p1_in: RawInput, p2_in: RawInput) -> tuple[GameState, list[CombatEvent]]:
+    """
+    Takes a game state and computes the next frame.
+    This is the mutable version which edits the parameter state
 
-def step_state(state: GameState, p1_in: RawInput, p2_in: RawInput) -> tuple[GameState, list[CombatEvent]]:
-    s = copy.deepcopy(state)
+    Returns:
+        The new game state (same reference to state), and a list of combat events which happened in this step
+
+    See Also:
+        fightsim.sim.step_state: step_state_mutate without mutation.
+    """
+    s = state
     events: list[CombatEvent] = []
     s.frame += 1
 
@@ -91,6 +100,22 @@ def step_state(state: GameState, p1_in: RawInput, p2_in: RawInput) -> tuple[Game
     s.last_events = events
     return s, events
 
+def step_state(state: GameState, p1_in: RawInput, p2_in: RawInput) -> tuple[GameState, list[CombatEvent]]:
+    """
+    Takes a game state and computes the next frame's game state.
+    This makes a deep copy of the game state so you still have the original.
+
+    Returns:
+        The new game state, and a list of combat events which happened in this step
+
+    Warning:
+        This version has been shown to introduce performance issues during training.
+
+    See Also:
+        fightsim.sim.step_state_mutate: step_state but state is mutated.
+    """
+
+    return step_state_mutate(copy.deepcopy(state), p1_in, p2_in)
 
 def _dec_locks(f) -> None:
     if f.landing_lock > 0:

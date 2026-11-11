@@ -1,4 +1,5 @@
 """Gymnasium env wrapping fightsim.Simulator.
+Gymnasium is a python library for creating an API between RL algorithms and environments.
 
 Frameskip, P2 opponent, semantic actions, and rewards live here — never in the sim.
 """
