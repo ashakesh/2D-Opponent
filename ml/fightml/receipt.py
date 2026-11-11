@@ -160,6 +160,8 @@ class ReceiptBuilder:
         return {
             "git": {
                 "head": head.hexsha,
+                "game_tree": _subtree_hexsha(head, "game"),
+                "ml_tree": _subtree_hexsha(head, "ml"),
                 "earliest_game_commit": find_earliest_matching_commit(
                     repo, "game", head
                 ).hexsha,
