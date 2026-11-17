@@ -18,7 +18,9 @@ The default backend is `fightsim` (`../game`). Swap the backend by wrapping any 
 
 Phase 1 mix4: MaskablePPO vs personality dummies only (`--dummy-only`, 30e6 steps). Timeout win is +0.25 (weaker than a KO); indecisive clock-outs are −0.25; a small time cost and a range-gated whiff penalty apply. Eval plays the zip as **P2**. See [HANDOFF.md](HANDOFF.md). Next: PFSP win-rate sampling, then raw-input with command flags off.
 
-Shipped generation zips live in **`ml/artifacts/`** (block, mix, mix2, mix3, mix4). New local trains, pool dumps, and TensorBoard logs go in **`ml/runs/`** (gitignored). CLI flags like `runs/ppo_mix4` always resolve under `ml/runs/` regardless of cwd; `artifacts/ppo_mix4` resolves to the shipped zip.
+Shipped generation zips live in **`ml/artifacts/`** with a yaml card each (see [`artifacts/README.md`](artifacts/README.md)). Current: **mix4**. New local trains, pool dumps, and TensorBoard logs go in **`ml/runs/`** (gitignored). `python -m fightml.train` appends `receipt.json` (git hashes + CLI) inside the zip. CLI flags like `runs/ppo_mix4` always resolve under `ml/runs/` regardless of cwd; `artifacts/ppo_mix4` resolves to the shipped zip.
+
+Team git protocol: [`CONTRIBUTING.md`](../CONTRIBUTING.md).
 
 ## Install
 
@@ -48,7 +50,7 @@ python -m fightml.train --dummy-only --p2 zoner --save runs/ppo_zoner --no-eval-
 
 Default P2 is a mix of personalities. For mix4, pass **`--dummy-only`** so `ml/runs/pool4/` checkpoints are written but not sampled as P2 this generation. `--timeout-lead 2000`, timeout win +0.25, indecisive timeout −0.25. Training randomizes side and gap. `--eval-after` prints a per-style table (agent as P2).
 
-TensorBoard logging is off unless you pass `--tb runs/tb`. Training does not import pygame.
+TensorBoard logging is off unless you pass `--tb runs/tb`. Training does not import pygame. Commit before a long train if you want an accurate receipt (dirty trees warn).
 
 ## Eval (watch / human / dummies)
 

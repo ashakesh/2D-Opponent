@@ -18,6 +18,7 @@ from fightml.env import (
     make_fight_env,
 )
 from fightml.paths import resolve_runs_path
+from fightml.receipt import ReceiptBuilder, parameters_from_args
 
 
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
@@ -123,6 +124,9 @@ def train(args: argparse.Namespace) -> Path:
     save_path.parent.mkdir(parents=True, exist_ok=True)
     args.pool = str(resolve_runs_path(args.pool))
 
+    # Built before learn() so a dirty-tree warning appears before hours of PPO.
+    receipt = ReceiptBuilder(save_path, parameters_from_args(args))
+
     tb_log: str | None = None
     if args.tb:
         tb_path = resolve_runs_path(args.tb)
@@ -157,9 +161,10 @@ def train(args: argparse.Namespace) -> Path:
         callback=callbacks or None,
         progress_bar=False,
     )
-    model.save(str(save_path))
+    model.save(receipt.receipt_buffer())
+    receipt_path = receipt.finish_receipt()
     env.close()
-    return save_path
+    return receipt_path
 
 
 def _eval_after(path: Path, args: argparse.Namespace) -> None:

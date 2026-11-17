@@ -8,7 +8,7 @@ This document is the source of truth for goals, the sim contract, reward pitfall
 
 ## Goal
 
-A short-term solo research project: an agent that learns **good, adaptive, potentially creative** fighting-game play.
+A short-term team research project: an agent that learns **good, adaptive, potentially creative** fighting-game play. How to branch, version the sim, and publish agents: [`CONTRIBUTING.md`](../CONTRIBUTING.md).
 
 The game is **not** the product. Visual polish, menus, and engine completeness do not matter. Research value is:
 
@@ -107,7 +107,7 @@ Phase-1 Gym action `Phase1Action.SPECIAL_3` maps to pulse.
 
 **Do not put `reward[t]` in the game tape.** Add rewards in the wrapper. Useful events already include hits/blocks/whiffs/throws/projectiles; `combo_ended` includes `length` so you can bin short / medium / long later without a “style” reward.
 
-Bump note: current sim is **0.3.0**. Older replays are invalid.
+Bump note: current sim is **0.4.1**. Older replays are invalid. Log bumps in [`game/CHANGELOG.md`](../game/CHANGELOG.md).
 
 ### What exists in the game (not ML's job)
 
@@ -251,12 +251,13 @@ Phase 1 (competent play vs scripted dummies) is in the tree:
 
 - [`env.py`](fightml/env.py) / [`train.py`](fightml/train.py) / [`eval.py`](fightml/eval.py) — Gymnasium env, MaskablePPO, eval as P2
 - [`protocol.py`](fightml/protocol.py) stays free of `fightsim` imports so a future backend can drop in
-- [`artifacts/`](artifacts/) — named generation zips to watch without retraining:
+- [`artifacts/`](artifacts/) — named generation zips + yaml cards ([registry](artifacts/README.md)):
   - `ppo_block.zip` — first dummy (block)
   - `ppo_mix.zip` — early personality mix
   - `ppo_mix2.zip` — mash-heavy mix
   - `ppo_mix3.zip` — jump-stall mix (timeout-at-0; the failure mix4 fixed)
-  - `ppo_mix4.zip` — current: dummy-only, 30e6 steps, timeout win +0.25 / indecisive timeout −0.25, time cost, range-gated whiff. KOs zoner/defensive instead of 10k–10k stalling
+  - `ppo_mix4.zip` — **current** ([card](artifacts/ppo_mix4.yaml)): dummy-only, 30e6 steps, timeout win +0.25 / indecisive timeout −0.25, time cost, range-gated whiff. KOs zoner/defensive instead of 10k–10k stalling
+- [`receipt.py`](fightml/receipt.py) — `train` writes `receipt.json` (git pins + CLI) into new zips; `eval` prints it when present
 
 ```bash
 python -m fightml.eval artifacts/ppo_mix4 --p1 human

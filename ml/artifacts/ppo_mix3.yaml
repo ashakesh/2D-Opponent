@@ -1,0 +1,20 @@
+id: ppo_mix3
+status: deprecated
+created: unknown
+author: unknown
+
+game:
+  simulator_version: unknown
+  commit: unknown
+ml:
+  commit: unknown
+
+compat:
+  sim: []
+  obs: Phase1-flatten
+  policy: MaskablePPO-MlpPolicy
+
+train:
+  notes: "Jump-stall mix (timeout reward at 0). mix4 replaced this. Not evidence on sim 0.4.1."
+
+eval_hint: "python -m fightml.eval artifacts/ppo_mix3 --p1 zoner"

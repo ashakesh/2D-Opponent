@@ -1,0 +1,20 @@
+id: ppo_block
+status: deprecated
+created: unknown
+author: unknown
+
+game:
+  simulator_version: unknown
+  commit: unknown
+ml:
+  commit: unknown
+
+compat:
+  sim: []
+  obs: Phase1-flatten
+  policy: PPO-MlpPolicy
+
+train:
+  notes: "First dummy (standing block). Predates receipts."
+
+eval_hint: "python -m fightml.eval artifacts/ppo_block --p1 block"

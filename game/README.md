@@ -2,6 +2,8 @@
 
 Tiny deterministic 2D fighting **simulator**. Not a fighting game: no menus or netcode. Optional PNG overlay is render-only and does not affect `step()`.
 
+Version: **0.4.1** ([`CHANGELOG.md`](CHANGELOG.md)). Bump `SIMULATOR_VERSION` with behavior-changing `step()` changes; team workflow is in [`CONTRIBUTING.md`](../CONTRIBUTING.md).
+
 Simulation is independent of rendering. `step()` always advances **one** frame and takes both players' raw inputs.
 
 ## Install

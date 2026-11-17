@@ -1,0 +1,44 @@
+id: ppo_mix4
+status: published
+created: 2026-10-21
+author: ashakesh
+
+game:
+  simulator_version: "0.4.1"
+  commit: unknown
+  tag: null
+ml:
+  commit: unknown
+python: "3.10.11"
+lockfile: requirements-lock.txt
+
+compat:
+  sim: ["0.4.1"]
+  obs: Phase1-flatten
+  policy: MaskablePPO-MlpPolicy
+
+train:
+  command: "python -m fightml.train --dummy-only --save runs/ppo_mix4 --pool runs/pool4 --n-envs 8 --timesteps 30000000"
+  timesteps: 30000000
+  n_envs: 8
+  frameskip: 4
+  seed: 0
+  p2: mix
+  dummy_only: true
+  opponents:
+    - aggressive
+    - defensive
+    - rushdown
+    - mobile
+    - zoner
+    - grappler
+  rewards:
+    timeout_lead: 2000
+    timeout_win: 0.25
+    timeout_draw: -0.25
+    time_cost: 0.25
+    whiff_penalty: 0.02
+    whiff_range_px: 100
+  notes: "Side and gap randomized. Timeout weaker than a KO. Zip predates receipts (no receipt.json)."
+
+eval_hint: "python -m fightml.eval artifacts/ppo_mix4 --p1 human"

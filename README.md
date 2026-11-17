@@ -12,7 +12,11 @@ ml/artifacts/  pretrained generation zips (block → mix4)
 
 **Dependency rule:** `game` never imports `ml`. Research wraps the simulator (or any other backend that matches the same API).
 
-**Status:** Phase 1 (competent play vs scripted dummies) is in the repo. The current policy is **mix4**. Watch it, or fight it, without retraining. Next research step is self-play / PFSP, then raw-input learning. Details: [`ml/HANDOFF.md`](ml/HANDOFF.md).
+**Status:** Phase 1 (competent play vs scripted dummies) is in the repo. The current policy is **mix4** ([card](ml/artifacts/ppo_mix4.yaml)). Watch it, or fight it, without retraining. Next research step is self-play / PFSP, then raw-input learning. Details: [`ml/HANDOFF.md`](ml/HANDOFF.md).
+
+## Collaborators
+
+Do not push to `main`. Use short-lived `game/<topic>` or `ml/<topic>` branches and open a Pull Request. Game commits stay under `game/`; ML commits stay under `ml/`. Published agents are a zip plus a yaml card in [`ml/artifacts/`](ml/artifacts/). Training writes git pins into the zip (`receipt.json`). Full protocol: [`CONTRIBUTING.md`](CONTRIBUTING.md). Sim version history: [`game/CHANGELOG.md`](game/CHANGELOG.md).
 
 ## Simulator contract
 
@@ -56,7 +60,7 @@ python -m fightml.eval artifacts/ppo_mix4 --p1 human
 python -m fightml.eval artifacts/ppo_mix3 --p1 zoner   # jump-stall, for comparison
 ```
 
-Do not add training code to `game/`. New train/eval checkpoints go in `ml/runs/` (gitignored) — not a `runs/` folder at the repo root. The shipped lineage lives in [`ml/artifacts/`](ml/artifacts/). Package docs: [`game/README.md`](game/README.md), [`ml/README.md`](ml/README.md).
+Do not add training code to `game/`. New train/eval checkpoints go in `ml/runs/` (gitignored) — not a `runs/` folder at the repo root. The shipped lineage lives in [`ml/artifacts/`](ml/artifacts/) (see the [registry](ml/artifacts/README.md)). Package docs: [`game/README.md`](game/README.md), [`ml/README.md`](ml/README.md).
 
 ## Tests
 

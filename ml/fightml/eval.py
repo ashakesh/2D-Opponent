@@ -19,6 +19,7 @@ from fightsim.state import RoundState
 from fightml.env import DUMMY_STYLES, PERSONALITY_STYLES, action_to_raw
 from fightml.obs import flatten_state
 from fightml.paths import resolve_artifact
+from fightml.receipt import format_receipt, read_receipt
 from fightml.spawn import place_fighters
 
 PredictFn = Callable[[Any], int]
@@ -369,8 +370,17 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     return parser.parse_args(argv)
 
 
+def _print_receipt(model_path: str) -> None:
+    receipt = read_receipt(resolve_artifact(model_path))
+    if receipt is None:
+        return
+    print("receipt:")
+    print(format_receipt(receipt))
+
+
 def main(argv: list[str] | None = None) -> None:
     args = parse_args(argv)
+    _print_receipt(args.model)
     if args.headless:
         if args.p1 == "human":
             print("--headless cannot use --p1 human", file=sys.stderr)
